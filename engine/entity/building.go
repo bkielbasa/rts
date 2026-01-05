@@ -2,28 +2,29 @@ package entity
 
 import (
 	emath "github.com/bklimczak/tanks/engine/math"
+	"github.com/bklimczak/tanks/engine/resource"
 )
 
-// Building represents a constructed building
 type Building struct {
 	Entity
-	Type          BuildingType
-	Def           *BuildingDef
-	Completed     bool
-	BuildProgress float64 // 0.0 to 1.0
-
-	// Production
-	Producing          bool
-	ProductionProgress float64 // 0.0 to 1.0
-	ProductionTime     float64 // Total time to produce
-	CurrentProduction  *UnitDef // What unit type is being produced
-	ProductionQueue    []*UnitDef // Queue of units to produce
-	RallyPoint         emath.Vec2
-	HasRallyPoint      bool
-	Selected           bool
+	Type                  BuildingType
+	Def                   *BuildingDef
+	Completed             bool
+	BuildProgress         float64
+	MetalSpent            float64
+	EnergySpent           float64
+	Producing             bool
+	ProductionProgress    float64
+	ProductionTime        float64
+	CurrentProduction     *UnitDef
+	ProductionQueue       []*UnitDef
+	ProductionMetalSpent  float64
+	ProductionEnergySpent float64
+	RallyPoint            emath.Vec2
+	HasRallyPoint         bool
+	Selected              bool
 }
 
-// NewBuilding creates a new completed building at the given position
 func NewBuilding(id uint64, x, y float64, def *BuildingDef) *Building {
 	b := &Building{
 		Entity: Entity{
@@ -38,13 +39,10 @@ func NewBuilding(id uint64, x, y float64, def *BuildingDef) *Building {
 		Completed:     true,
 		BuildProgress: 1.0,
 	}
-	// Set default rally point to the right of the building
 	b.RallyPoint = emath.Vec2{X: x + def.Size + 20, Y: y + def.Size/2}
 	b.HasRallyPoint = true
 	return b
 }
-
-// NewBuildingUnderConstruction creates a new building that needs to be constructed
 func NewBuildingUnderConstruction(id uint64, x, y float64, def *BuildingDef) *Building {
 	b := &Building{
 		Entity: Entity{
@@ -59,19 +57,67 @@ func NewBuildingUnderConstruction(id uint64, x, y float64, def *BuildingDef) *Bu
 		Completed:     false,
 		BuildProgress: 0.0,
 	}
-	// Set default rally point to the right of the building
 	b.RallyPoint = emath.Vec2{X: x + def.Size + 20, Y: y + def.Size/2}
 	b.HasRallyPoint = true
 	return b
 }
-
-// UpdateConstruction advances construction progress, returns true when complete
-func (b *Building) UpdateConstruction(dt float64) bool {
+func (b *Building) UpdateConstruction(dt float64, resources *resource.Manager) bool {
 	if b.Completed {
 		return false
 	}
-
-	b.BuildProgress += dt / b.Def.BuildTime
+	progressDelta := dt / b.Def.BuildTime
+	targetProgress := b.BuildProgress + progressDelta
+	if targetProgress > 1.0 {
+		targetProgress = 1.0
+	}
+	metalCost := b.Def.Cost[resource.Metal]
+	energyCost := b.Def.Cost[resource.Energy]
+	metalNeeded := targetProgress*metalCost - b.MetalSpent
+	energyNeeded := targetProgress*energyCost - b.EnergySpent
+	metalAvailable := resources.Get(resource.Metal).Current
+	energyAvailable := resources.Get(resource.Energy).Current
+	metalToSpend := metalNeeded
+	if metalToSpend > metalAvailable {
+		metalToSpend = metalAvailable
+	}
+	energyToSpend := energyNeeded
+	if energyToSpend > energyAvailable {
+		energyToSpend = energyAvailable
+	}
+	var actualProgress float64
+	if metalCost > 0 && energyCost > 0 {
+		metalProgress := (b.MetalSpent + metalToSpend) / metalCost
+		energyProgress := (b.EnergySpent + energyToSpend) / energyCost
+		if metalProgress < energyProgress {
+			actualProgress = metalProgress
+		} else {
+			actualProgress = energyProgress
+		}
+	} else if metalCost > 0 {
+		actualProgress = (b.MetalSpent + metalToSpend) / metalCost
+	} else if energyCost > 0 {
+		actualProgress = (b.EnergySpent + energyToSpend) / energyCost
+	} else {
+		actualProgress = targetProgress
+	}
+	if actualProgress > targetProgress {
+		actualProgress = targetProgress
+	}
+	if metalCost > 0 {
+		metalToSpend = actualProgress*metalCost - b.MetalSpent
+		if metalToSpend > 0 {
+			resources.Get(resource.Metal).SpendWithTracking(metalToSpend)
+			b.MetalSpent += metalToSpend
+		}
+	}
+	if energyCost > 0 {
+		energyToSpend = actualProgress*energyCost - b.EnergySpent
+		if energyToSpend > 0 {
+			resources.Get(resource.Energy).SpendWithTracking(energyToSpend)
+			b.EnergySpent += energyToSpend
+		}
+	}
+	b.BuildProgress = actualProgress
 	if b.BuildProgress >= 1.0 {
 		b.BuildProgress = 1.0
 		b.Completed = true
@@ -79,39 +125,28 @@ func (b *Building) UpdateConstruction(dt float64) bool {
 	}
 	return false
 }
-
-// CanProduce returns true if this building can produce units
 func (b *Building) CanProduce() bool {
 	return b.Type == BuildingTankFactory && b.Completed
 }
-
-// QueueProduction adds a unit to the production queue
 func (b *Building) QueueProduction(unitDef *UnitDef) {
 	if !b.CanProduce() || unitDef == nil {
 		return
 	}
 	b.ProductionQueue = append(b.ProductionQueue, unitDef)
-
-	// Start production if not already producing
 	if !b.Producing {
 		b.startNextProduction()
 	}
 }
-
-// startNextProduction starts producing the next unit in queue
 func (b *Building) startNextProduction() {
 	if len(b.ProductionQueue) == 0 {
 		return
 	}
-
 	b.CurrentProduction = b.ProductionQueue[0]
 	b.ProductionQueue = b.ProductionQueue[1:]
 	b.Producing = true
 	b.ProductionProgress = 0
 	b.ProductionTime = b.CurrentProduction.BuildTime
 }
-
-// GetQueueCount returns the count of a specific unit type in the queue (including current)
 func (b *Building) GetQueueCount(unitType UnitType) int {
 	count := 0
 	if b.Producing && b.CurrentProduction != nil && b.CurrentProduction.Type == unitType {
@@ -124,8 +159,6 @@ func (b *Building) GetQueueCount(unitType UnitType) int {
 	}
 	return count
 }
-
-// GetTotalQueueCount returns total units in queue (including current)
 func (b *Building) GetTotalQueueCount() int {
 	count := len(b.ProductionQueue)
 	if b.Producing {
@@ -133,33 +166,106 @@ func (b *Building) GetTotalQueueCount() int {
 	}
 	return count
 }
-
-// UpdateProduction updates production progress, returns the completed unit def if ready
-func (b *Building) UpdateProduction(dt float64) *UnitDef {
+func (b *Building) RemoveFromQueue(unitType UnitType, resources *resource.Manager) (metalRefund, energyRefund float64) {
+	for i := len(b.ProductionQueue) - 1; i >= 0; i-- {
+		if b.ProductionQueue[i].Type == unitType {
+			b.ProductionQueue = append(b.ProductionQueue[:i], b.ProductionQueue[i+1:]...)
+			return 0, 0
+		}
+	}
+	if b.Producing && b.CurrentProduction != nil && b.CurrentProduction.Type == unitType {
+		metalRefund = b.ProductionMetalSpent
+		energyRefund = b.ProductionEnergySpent
+		if resources != nil {
+			if metalRefund > 0 {
+				resources.Get(resource.Metal).Add(metalRefund)
+			}
+			if energyRefund > 0 {
+				resources.Get(resource.Energy).Add(energyRefund)
+			}
+		}
+		b.Producing = false
+		b.ProductionProgress = 0
+		b.CurrentProduction = nil
+		b.ProductionMetalSpent = 0
+		b.ProductionEnergySpent = 0
+		b.startNextProduction()
+		return metalRefund, energyRefund
+	}
+	return 0, 0
+}
+func (b *Building) UpdateProduction(dt float64, resources *resource.Manager) *UnitDef {
 	if !b.Producing {
 		return nil
 	}
-
-	b.ProductionProgress += dt / b.ProductionTime
+	progressDelta := dt / b.ProductionTime
+	targetProgress := b.ProductionProgress + progressDelta
+	if targetProgress > 1.0 {
+		targetProgress = 1.0
+	}
+	metalCost := b.CurrentProduction.Cost[resource.Metal]
+	energyCost := b.CurrentProduction.Cost[resource.Energy]
+	metalNeeded := targetProgress*metalCost - b.ProductionMetalSpent
+	energyNeeded := targetProgress*energyCost - b.ProductionEnergySpent
+	metalAvailable := resources.Get(resource.Metal).Current
+	energyAvailable := resources.Get(resource.Energy).Current
+	metalToSpend := metalNeeded
+	if metalToSpend > metalAvailable {
+		metalToSpend = metalAvailable
+	}
+	energyToSpend := energyNeeded
+	if energyToSpend > energyAvailable {
+		energyToSpend = energyAvailable
+	}
+	var actualProgress float64
+	if metalCost > 0 && energyCost > 0 {
+		metalProgress := (b.ProductionMetalSpent + metalToSpend) / metalCost
+		energyProgress := (b.ProductionEnergySpent + energyToSpend) / energyCost
+		if metalProgress < energyProgress {
+			actualProgress = metalProgress
+		} else {
+			actualProgress = energyProgress
+		}
+	} else if metalCost > 0 {
+		actualProgress = (b.ProductionMetalSpent + metalToSpend) / metalCost
+	} else if energyCost > 0 {
+		actualProgress = (b.ProductionEnergySpent + energyToSpend) / energyCost
+	} else {
+		actualProgress = targetProgress
+	}
+	if actualProgress > targetProgress {
+		actualProgress = targetProgress
+	}
+	if metalCost > 0 {
+		metalToSpend = actualProgress*metalCost - b.ProductionMetalSpent
+		if metalToSpend > 0 {
+			resources.Get(resource.Metal).SpendWithTracking(metalToSpend)
+			b.ProductionMetalSpent += metalToSpend
+		}
+	}
+	if energyCost > 0 {
+		energyToSpend = actualProgress*energyCost - b.ProductionEnergySpent
+		if energyToSpend > 0 {
+			resources.Get(resource.Energy).SpendWithTracking(energyToSpend)
+			b.ProductionEnergySpent += energyToSpend
+		}
+	}
+	b.ProductionProgress = actualProgress
 	if b.ProductionProgress >= 1.0 {
 		completedUnit := b.CurrentProduction
 		b.Producing = false
 		b.ProductionProgress = 0
 		b.CurrentProduction = nil
-
-		// Start next in queue
+		b.ProductionMetalSpent = 0
+		b.ProductionEnergySpent = 0
 		b.startNextProduction()
-
 		return completedUnit
 	}
 	return nil
 }
-
-// GetSpawnPoint returns where new units should spawn
 func (b *Building) GetSpawnPoint() emath.Vec2 {
-	// Spawn at the bottom-center of the building
 	return emath.Vec2{
-		X: b.Position.X + b.Size.X/2 - 11, // Center, offset by half tank size
-		Y: b.Position.Y + b.Size.Y + 5,    // Just below the building
+		X: b.Position.X + b.Size.X/2 - 11,
+		Y: b.Position.Y + b.Size.Y + 5,
 	}
 }

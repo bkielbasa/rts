@@ -1,4 +1,3 @@
-// Package engine provides a reusable 2D game engine built on Ebiten
 package engine
 
 import (
@@ -9,7 +8,6 @@ import (
 	"github.com/bklimczak/tanks/engine/resource"
 )
 
-// Engine holds the core systems
 type Engine struct {
 	Input     *input.Manager
 	Collision *collision.System
@@ -18,7 +16,6 @@ type Engine struct {
 	Camera    *camera.Camera
 }
 
-// New creates a new engine instance
 func New(worldWidth, worldHeight, viewportWidth, viewportHeight float64) *Engine {
 	return &Engine{
 		Input:     input.NewManager(),
@@ -28,14 +25,10 @@ func New(worldWidth, worldHeight, viewportWidth, viewportHeight float64) *Engine
 		Camera:    camera.New(worldWidth, worldHeight, viewportWidth, viewportHeight),
 	}
 }
-
-// UpdateWorldSize updates the collision system world bounds
 func (e *Engine) UpdateWorldSize(width, height float64) {
 	e.Collision.SetWorldBounds(width, height)
 	e.Camera.SetWorldSize(width, height)
 }
-
-// UpdateViewportSize updates the camera viewport size
 func (e *Engine) UpdateViewportSize(width, height float64) {
 	e.Camera.SetViewportSize(width, height)
 }

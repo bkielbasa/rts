@@ -1,12 +1,10 @@
 package entity
 
 import (
-	"image/color"
-
 	"github.com/bklimczak/tanks/engine/resource"
+	"image/color"
 )
 
-// UnitType identifies what kind of unit this is
 type UnitType int
 
 const (
@@ -16,7 +14,6 @@ const (
 	UnitTypeScout
 )
 
-// String returns the display name
 func (t UnitType) String() string {
 	switch t {
 	case UnitTypeConstructor:
@@ -30,7 +27,6 @@ func (t UnitType) String() string {
 	}
 }
 
-// UnitDef defines the properties of a producible unit type
 type UnitDef struct {
 	Type        UnitType
 	Name        string
@@ -40,14 +36,12 @@ type UnitDef struct {
 	Color       color.Color // Base color (modified by faction)
 	Cost        map[resource.Type]float64
 	BuildTime   float64
-	// Combat stats
-	Health   float64
-	Damage   float64 // Damage per shot
-	Range    float64 // Attack range
-	FireRate float64 // Shots per second
+	Health      float64
+	Damage      float64 // Damage per shot
+	Range       float64 // Attack range
+	FireRate    float64 // Shots per second
 }
 
-// UnitDefs contains all unit definitions for factory production
 var UnitDefs = map[UnitType]*UnitDef{
 	UnitTypeTank: {
 		Type:        UnitTypeTank,
@@ -102,7 +96,6 @@ var UnitDefs = map[UnitType]*UnitDef{
 	},
 }
 
-// GetProducibleUnits returns unit definitions a building can produce
 func GetProducibleUnits(buildingType BuildingType) []*UnitDef {
 	switch buildingType {
 	case BuildingTankFactory:
@@ -115,7 +108,6 @@ func GetProducibleUnits(buildingType BuildingType) []*UnitDef {
 	}
 }
 
-// BuildingType identifies what kind of building this is
 type BuildingType int
 
 const (
@@ -129,7 +121,6 @@ const (
 	NumBuildingTypes
 )
 
-// String returns the display name
 func (t BuildingType) String() string {
 	switch t {
 	case BuildingTankFactory:
@@ -151,27 +142,22 @@ func (t BuildingType) String() string {
 	}
 }
 
-// BuildingDef defines the properties of a building type
 type BuildingDef struct {
-	Type        BuildingType
-	Name        string
-	Description string
-	Size        float64
-	Color       color.Color
-	Cost        map[resource.Type]float64
-	// Resource production/consumption when built
+	Type              BuildingType
+	Name              string
+	Description       string
+	Size              float64
+	Color             color.Color
+	Cost              map[resource.Type]float64
 	MetalProduction   float64
 	EnergyProduction  float64
 	MetalConsumption  float64
 	EnergyConsumption float64
-	// Storage capacity added when built
-	MetalStorage  float64
-	EnergyStorage float64
-	// Build time in seconds
-	BuildTime float64
+	MetalStorage      float64
+	EnergyStorage     float64
+	BuildTime         float64
 }
 
-// BuildingDefs contains all building definitions
 var BuildingDefs = map[BuildingType]*BuildingDef{
 	BuildingTankFactory: {
 		Type:        BuildingTankFactory,
@@ -187,11 +173,11 @@ var BuildingDefs = map[BuildingType]*BuildingDef{
 		BuildTime:         10,
 	},
 	BuildingSolarPanel: {
-		Type:              BuildingSolarPanel,
-		Name:              "Solar Panel",
-		Description:       "Generates energy",
-		Size:              40,
-		Color:             color.RGBA{50, 100, 200, 255}, // Blue
+		Type:        BuildingSolarPanel,
+		Name:        "Solar Panel",
+		Description: "Generates energy",
+		Size:        40,
+		Color:       color.RGBA{50, 100, 200, 255}, // Blue
 		Cost: map[resource.Type]float64{
 			resource.Metal: 50,
 		},
@@ -199,11 +185,11 @@ var BuildingDefs = map[BuildingType]*BuildingDef{
 		BuildTime:        5,
 	},
 	BuildingMetalExtractor: {
-		Type:              BuildingMetalExtractor,
-		Name:              "Metal Extractor",
-		Description:       "Extracts metal from the ground",
-		Size:              35,
-		Color:             color.RGBA{150, 150, 170, 255}, // Silver
+		Type:        BuildingMetalExtractor,
+		Name:        "Metal Extractor",
+		Description: "Extracts metal from the ground",
+		Size:        35,
+		Color:       color.RGBA{150, 150, 170, 255}, // Silver
 		Cost: map[resource.Type]float64{
 			resource.Metal:  50,
 			resource.Energy: 25,
@@ -264,7 +250,6 @@ var BuildingDefs = map[BuildingType]*BuildingDef{
 	},
 }
 
-// GetBuildableDefs returns all building definitions a unit type can build
 func GetBuildableDefs(unitType UnitType) []*BuildingDef {
 	switch unitType {
 	case UnitTypeConstructor:

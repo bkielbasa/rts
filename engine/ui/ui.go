@@ -1,14 +1,12 @@
 package ui
 
 import (
-	"image/color"
-
 	emath "github.com/bklimczak/tanks/engine/math"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/vector"
+	"image/color"
 )
 
-// Colors for UI elements
 var (
 	BackgroundColor    = color.RGBA{30, 30, 40, 240}
 	BorderColor        = color.RGBA{60, 60, 80, 255}
@@ -16,15 +14,13 @@ var (
 	BarBackgroundColor = color.RGBA{20, 20, 25, 255}
 )
 
-// Panel represents a UI panel/container
 type Panel struct {
-	Bounds     emath.Rect
-	Background color.Color
-	Border     color.Color
+	Bounds      emath.Rect
+	Background  color.Color
+	Border      color.Color
 	BorderWidth float32
 }
 
-// NewPanel creates a new panel
 func NewPanel(x, y, w, h float64) *Panel {
 	return &Panel{
 		Bounds:      emath.NewRect(x, y, w, h),
@@ -33,10 +29,7 @@ func NewPanel(x, y, w, h float64) *Panel {
 		BorderWidth: 1,
 	}
 }
-
-// Draw renders the panel
 func (p *Panel) Draw(screen *ebiten.Image) {
-	// Background
 	vector.FillRect(
 		screen,
 		float32(p.Bounds.Pos.X),
@@ -46,8 +39,6 @@ func (p *Panel) Draw(screen *ebiten.Image) {
 		p.Background,
 		false,
 	)
-
-	// Border
 	if p.BorderWidth > 0 {
 		vector.StrokeRect(
 			screen,
@@ -62,7 +53,6 @@ func (p *Panel) Draw(screen *ebiten.Image) {
 	}
 }
 
-// ProgressBar represents a horizontal progress bar
 type ProgressBar struct {
 	Bounds     emath.Rect
 	Progress   float64 // 0.0 to 1.0
@@ -70,7 +60,6 @@ type ProgressBar struct {
 	Background color.Color
 }
 
-// NewProgressBar creates a new progress bar
 func NewProgressBar(x, y, w, h float64, fillColor color.Color) *ProgressBar {
 	return &ProgressBar{
 		Bounds:     emath.NewRect(x, y, w, h),
@@ -79,10 +68,7 @@ func NewProgressBar(x, y, w, h float64, fillColor color.Color) *ProgressBar {
 		Background: BarBackgroundColor,
 	}
 }
-
-// Draw renders the progress bar
 func (pb *ProgressBar) Draw(screen *ebiten.Image) {
-	// Background
 	vector.FillRect(
 		screen,
 		float32(pb.Bounds.Pos.X),
@@ -92,8 +78,6 @@ func (pb *ProgressBar) Draw(screen *ebiten.Image) {
 		pb.Background,
 		false,
 	)
-
-	// Fill
 	if pb.Progress > 0 {
 		fillWidth := pb.Bounds.Size.X * pb.Progress
 		vector.FillRect(
@@ -107,8 +91,6 @@ func (pb *ProgressBar) Draw(screen *ebiten.Image) {
 		)
 	}
 }
-
-// SetProgress sets the progress (clamped 0-1)
 func (pb *ProgressBar) SetProgress(p float64) {
 	if p < 0 {
 		p = 0
