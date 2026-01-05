@@ -1,0 +1,126 @@
+package input
+
+import (
+	emath "github.com/bklimczak/tanks/engine/math"
+	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/inpututil"
+)
+
+// State represents the current input state
+type State struct {
+	MousePos         emath.Vec2
+	LeftPressed      bool
+	LeftJustPressed  bool
+	LeftJustReleased bool
+	RightPressed     bool
+	RightJustPressed bool
+	ShiftHeld        bool
+	EscapePressed    bool
+
+	// Camera scroll keys
+	ScrollUp    bool
+	ScrollDown  bool
+	ScrollLeft  bool
+	ScrollRight bool
+
+	// Action keys
+	BuildTankPressed bool // T key to build tank
+
+	// Menu navigation
+	MenuUp      bool // Up arrow only (not W, for menu)
+	MenuDown    bool // Down arrow only (not S, for menu)
+	EnterPressed bool // Enter/Return key
+
+	// Drag state
+	IsDragging bool
+	DragStart  emath.Vec2
+	DragEnd    emath.Vec2
+}
+
+// Manager handles input processing
+type Manager struct {
+	state        State
+	dragStarted  bool
+	dragThreshold float64
+}
+
+// NewManager creates a new input manager
+func NewManager() *Manager {
+	return &Manager{
+		dragThreshold: 5.0, // pixels
+	}
+}
+
+// Update processes input and updates state
+func (m *Manager) Update() {
+	x, y := ebiten.CursorPosition()
+	m.state.MousePos = emath.NewVec2(float64(x), float64(y))
+
+	m.state.LeftPressed = ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft)
+	m.state.LeftJustPressed = inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft)
+	m.state.LeftJustReleased = inpututil.IsMouseButtonJustReleased(ebiten.MouseButtonLeft)
+	m.state.RightPressed = ebiten.IsMouseButtonPressed(ebiten.MouseButtonRight)
+	m.state.RightJustPressed = inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonRight)
+	m.state.ShiftHeld = ebiten.IsKeyPressed(ebiten.KeyShift)
+	m.state.EscapePressed = inpututil.IsKeyJustPressed(ebiten.KeyEscape)
+
+	// Camera scroll keys (arrow keys and WASD)
+	m.state.ScrollUp = ebiten.IsKeyPressed(ebiten.KeyUp) || ebiten.IsKeyPressed(ebiten.KeyW)
+	m.state.ScrollDown = ebiten.IsKeyPressed(ebiten.KeyDown) || ebiten.IsKeyPressed(ebiten.KeyS)
+	m.state.ScrollLeft = ebiten.IsKeyPressed(ebiten.KeyLeft) || ebiten.IsKeyPressed(ebiten.KeyA)
+	m.state.ScrollRight = ebiten.IsKeyPressed(ebiten.KeyRight) || ebiten.IsKeyPressed(ebiten.KeyD)
+
+	// Action keys
+	m.state.BuildTankPressed = inpututil.IsKeyJustPressed(ebiten.KeyT)
+
+	// Menu navigation (just pressed, not held)
+	m.state.MenuUp = inpututil.IsKeyJustPressed(ebiten.KeyUp)
+	m.state.MenuDown = inpututil.IsKeyJustPressed(ebiten.KeyDown)
+	m.state.EnterPressed = inpututil.IsKeyJustPressed(ebiten.KeyEnter)
+
+	// Handle drag state
+	if m.state.LeftJustPressed {
+		m.state.DragStart = m.state.MousePos
+		m.dragStarted = true
+		m.state.IsDragging = false
+	}
+
+	if m.dragStarted && m.state.LeftPressed {
+		dist := m.state.MousePos.Distance(m.state.DragStart)
+		if dist > m.dragThreshold {
+			m.state.IsDragging = true
+		}
+		m.state.DragEnd = m.state.MousePos
+	}
+
+	if m.state.LeftJustReleased {
+		m.state.DragEnd = m.state.MousePos
+		m.dragStarted = false
+	}
+}
+
+// State returns the current input state
+func (m *Manager) State() State {
+	return m.state
+}
+
+// GetSelectionBox returns the normalized selection box (top-left to bottom-right)
+func (m *Manager) GetSelectionBox() emath.Rect {
+	x1, y1 := m.state.DragStart.X, m.state.DragStart.Y
+	x2, y2 := m.state.DragEnd.X, m.state.DragEnd.Y
+
+	if x1 > x2 {
+		x1, x2 = x2, x1
+	}
+	if y1 > y2 {
+		y1, y2 = y2, y1
+	}
+
+	return emath.NewRect(x1, y1, x2-x1, y2-y1)
+}
+
+// ResetDrag clears the drag state
+func (m *Manager) ResetDrag() {
+	m.state.IsDragging = false
+	m.dragStarted = false
+}
