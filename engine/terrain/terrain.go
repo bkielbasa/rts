@@ -13,7 +13,7 @@ const (
 	TileWater
 	TileMetal // Metal deposits for extraction
 )
-const TileSize = 50.0
+const TileSize = 25.0
 
 type Tile struct {
 	Type        TileType

@@ -23,6 +23,12 @@ type Building struct {
 	RallyPoint            emath.Vec2
 	HasRallyPoint         bool
 	Selected              bool
+	Health                float64
+	MaxHealth             float64
+
+	// Combat state for defensive buildings
+	AttackTarget *Unit
+	FireCooldown float64
 }
 
 func NewBuilding(id uint64, x, y float64, def *BuildingDef) *Building {
@@ -38,6 +44,8 @@ func NewBuilding(id uint64, x, y float64, def *BuildingDef) *Building {
 		Def:           def,
 		Completed:     true,
 		BuildProgress: 1.0,
+		Health:        def.Health,
+		MaxHealth:     def.Health,
 	}
 	b.RallyPoint = emath.Vec2{X: x + def.Size + 20, Y: y + def.Size/2}
 	b.HasRallyPoint = true
@@ -56,6 +64,8 @@ func NewBuildingUnderConstruction(id uint64, x, y float64, def *BuildingDef) *Bu
 		Def:           def,
 		Completed:     false,
 		BuildProgress: 0.0,
+		Health:        def.Health * 0.1,
+		MaxHealth:     def.Health,
 	}
 	b.RallyPoint = emath.Vec2{X: x + def.Size + 20, Y: y + def.Size/2}
 	b.HasRallyPoint = true
@@ -126,7 +136,7 @@ func (b *Building) UpdateConstruction(dt float64, resources *resource.Manager) b
 	return false
 }
 func (b *Building) CanProduce() bool {
-	return b.Type == BuildingTankFactory && b.Completed
+	return b.Def != nil && b.Def.IsFactory && b.Completed
 }
 func (b *Building) QueueProduction(unitDef *UnitDef) {
 	if !b.CanProduce() || unitDef == nil {
@@ -268,4 +278,45 @@ func (b *Building) GetSpawnPoint() emath.Vec2 {
 		X: b.Position.X + b.Size.X/2 - 11,
 		Y: b.Position.Y + b.Size.Y + 5,
 	}
+}
+
+func (b *Building) TakeDamage(damage float64) bool {
+	b.Health -= damage
+	if b.Health <= 0 {
+		b.Health = 0
+		b.Active = false
+		return true
+	}
+	return false
+}
+
+func (b *Building) HealthRatio() float64 {
+	if b.MaxHealth <= 0 {
+		return 1
+	}
+	return b.Health / b.MaxHealth
+}
+
+// CanAttack returns true if this building can attack enemies
+func (b *Building) CanAttack() bool {
+	return b.Def != nil && b.Def.CanAttack && b.Completed
+}
+
+// IsInAttackRange checks if a target unit is within attack range
+func (b *Building) IsInAttackRange(target *Unit) bool {
+	if target == nil || b.Def == nil {
+		return false
+	}
+	dist := b.Center().Distance(target.Center())
+	return dist <= b.Def.AttackRange
+}
+
+// SetAttackTarget sets the building's current attack target
+func (b *Building) SetAttackTarget(target *Unit) {
+	b.AttackTarget = target
+}
+
+// ClearAttackTarget clears the building's attack target
+func (b *Building) ClearAttackTarget() {
+	b.AttackTarget = nil
 }

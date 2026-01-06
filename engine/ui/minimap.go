@@ -2,6 +2,7 @@ package ui
 
 import (
 	"github.com/bklimczak/tanks/engine/camera"
+	"github.com/bklimczak/tanks/engine/fog"
 	emath "github.com/bklimczak/tanks/engine/math"
 	"github.com/bklimczak/tanks/engine/terrain"
 	"github.com/hajimehoshi/ebiten/v2"
@@ -15,10 +16,13 @@ type MinimapEntity struct {
 	Color    color.Color
 }
 type Minimap struct {
-	bounds      emath.Rect
-	worldSize   emath.Vec2
-	borderColor color.Color
-	bgColor     color.Color
+	bounds         emath.Rect
+	worldSize      emath.Vec2
+	borderColor    color.Color
+	bgColor        color.Color
+	terrainCache   *ebiten.Image
+	fogCache       *ebiten.Image
+	lastFogVersion int
 }
 
 func NewMinimap(x, y, width, height float64) *Minimap {
@@ -65,9 +69,9 @@ func (m *Minimap) worldSizeToMinimap(worldSize emath.Vec2) emath.Vec2 {
 		Y: worldSize.Y * scaleY,
 	}
 }
-func (m *Minimap) Draw(screen *ebiten.Image, cam *camera.Camera, terrainMap *terrain.Map, entities []MinimapEntity) {
+func (m *Minimap) Draw(screen *ebiten.Image, cam *camera.Camera, terrainMap *terrain.Map, fogOfWar *fog.FogOfWar, entities []MinimapEntity) {
 	if terrainMap != nil {
-		m.drawTerrain(screen, terrainMap)
+		m.drawTerrainWithFog(screen, terrainMap, fogOfWar)
 	} else {
 		vector.FillRect(
 			screen,
@@ -88,6 +92,10 @@ func (m *Minimap) Draw(screen *ebiten.Image, cam *camera.Camera, terrainMap *ter
 		if size.Y < 2 {
 			size.Y = 2
 		}
+		if pos.X < m.bounds.Pos.X || pos.Y < m.bounds.Pos.Y ||
+			pos.X > m.bounds.Pos.X+m.bounds.Size.X || pos.Y > m.bounds.Pos.Y+m.bounds.Size.Y {
+			continue
+		}
 		vector.FillRect(
 			screen,
 			float32(pos.X),
@@ -100,16 +108,36 @@ func (m *Minimap) Draw(screen *ebiten.Image, cam *camera.Camera, terrainMap *ter
 	}
 	viewportPos := m.worldToMinimap(cam.Position)
 	viewportSize := m.worldSizeToMinimap(cam.ViewportSize)
-	vector.StrokeRect(
-		screen,
-		float32(viewportPos.X),
-		float32(viewportPos.Y),
-		float32(viewportSize.X),
-		float32(viewportSize.Y),
-		1,
-		color.RGBA{255, 255, 255, 200},
-		false,
-	)
+	vpX := viewportPos.X
+	vpY := viewportPos.Y
+	vpW := viewportSize.X
+	vpH := viewportSize.Y
+	if vpX < m.bounds.Pos.X {
+		vpW -= m.bounds.Pos.X - vpX
+		vpX = m.bounds.Pos.X
+	}
+	if vpY < m.bounds.Pos.Y {
+		vpH -= m.bounds.Pos.Y - vpY
+		vpY = m.bounds.Pos.Y
+	}
+	if vpX+vpW > m.bounds.Pos.X+m.bounds.Size.X {
+		vpW = m.bounds.Pos.X + m.bounds.Size.X - vpX
+	}
+	if vpY+vpH > m.bounds.Pos.Y+m.bounds.Size.Y {
+		vpH = m.bounds.Pos.Y + m.bounds.Size.Y - vpY
+	}
+	if vpW > 0 && vpH > 0 {
+		vector.StrokeRect(
+			screen,
+			float32(vpX),
+			float32(vpY),
+			float32(vpW),
+			float32(vpH),
+			1,
+			color.RGBA{255, 255, 255, 200},
+			false,
+		)
+	}
 	vector.StrokeRect(
 		screen,
 		float32(m.bounds.Pos.X),
@@ -121,7 +149,49 @@ func (m *Minimap) Draw(screen *ebiten.Image, cam *camera.Camera, terrainMap *ter
 		false,
 	)
 }
-func (m *Minimap) drawTerrain(screen *ebiten.Image, terrainMap *terrain.Map) {
+func (m *Minimap) drawTerrainWithFog(screen *ebiten.Image, terrainMap *terrain.Map, fogOfWar *fog.FogOfWar) {
+	cacheWidth := int(m.bounds.Size.X)
+	cacheHeight := int(m.bounds.Size.Y)
+
+	// Build base terrain cache once (never changes)
+	if m.terrainCache == nil {
+		m.terrainCache = ebiten.NewImage(cacheWidth, cacheHeight)
+		scaleX := m.bounds.Size.X / m.worldSize.X
+		scaleY := m.bounds.Size.Y / m.worldSize.Y
+		tileScreenWidth := terrain.TileSize * scaleX
+		tileScreenHeight := terrain.TileSize * scaleY
+		if tileScreenWidth < 1 {
+			tileScreenWidth = 1
+		}
+		if tileScreenHeight < 1 {
+			tileScreenHeight = 1
+		}
+
+		for y := 0; y < terrainMap.Height; y++ {
+			for x := 0; x < terrainMap.Width; x++ {
+				tile := terrainMap.Tiles[y][x]
+				screenX := float64(x) * tileScreenWidth
+				screenY := float64(y) * tileScreenHeight
+				tileColor := terrain.TileColors(tile.Type).(color.RGBA)
+				vector.DrawFilledRect(
+					m.terrainCache,
+					float32(screenX),
+					float32(screenY),
+					float32(tileScreenWidth)+1,
+					float32(tileScreenHeight)+1,
+					tileColor,
+					false,
+				)
+			}
+		}
+	}
+
+	// Draw base terrain
+	op := &ebiten.DrawImageOptions{}
+	op.GeoM.Translate(m.bounds.Pos.X, m.bounds.Pos.Y)
+	screen.DrawImage(m.terrainCache, op)
+
+	// Draw fog overlay directly (no caching - simpler and fog changes every frame anyway)
 	scaleX := m.bounds.Size.X / m.worldSize.X
 	scaleY := m.bounds.Size.Y / m.worldSize.Y
 	tileScreenWidth := terrain.TileSize * scaleX
@@ -132,19 +202,31 @@ func (m *Minimap) drawTerrain(screen *ebiten.Image, terrainMap *terrain.Map) {
 	if tileScreenHeight < 1 {
 		tileScreenHeight = 1
 	}
+
 	for y := 0; y < terrainMap.Height; y++ {
 		for x := 0; x < terrainMap.Width; x++ {
-			tile := terrainMap.Tiles[y][x]
-			tileColor := terrain.TileColors(tile.Type)
+			fogState := fogOfWar.GetTileStateAt(x, y)
+			if fogState == fog.Visible {
+				continue // No overlay needed
+			}
+
 			screenX := m.bounds.Pos.X + float64(x)*tileScreenWidth
 			screenY := m.bounds.Pos.Y + float64(y)*tileScreenHeight
-			vector.FillRect(
+
+			var fogColor color.RGBA
+			if fogState == fog.Unexplored {
+				fogColor = color.RGBA{0, 0, 0, 255}
+			} else {
+				fogColor = color.RGBA{0, 0, 0, 153} // 60% dark for explored
+			}
+
+			vector.DrawFilledRect(
 				screen,
 				float32(screenX),
 				float32(screenY),
-				float32(tileScreenWidth)+1, // +1 to avoid gaps
+				float32(tileScreenWidth)+1,
 				float32(tileScreenHeight)+1,
-				tileColor,
+				fogColor,
 				false,
 			)
 		}

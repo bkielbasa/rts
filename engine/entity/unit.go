@@ -5,110 +5,75 @@ import (
 	"math"
 )
 
+// BuildTask represents a queued building construction task
+type BuildTask struct {
+	Def *BuildingDef
+	Pos emath.Vec2
+}
+
 type Unit struct {
 	Entity
-	Type          UnitType
-	Target        emath.Vec2
-	HasTarget     bool
-	Selected      bool
-	Speed         float64
-	StuckCounter  int
-	LastPosition  emath.Vec2
-	Angle         float64
-	RotationSpeed float64
-	Health        float64
-	MaxHealth     float64
-	Damage        float64
-	Range         float64
-	FireRate      float64
-	FireCooldown  float64
-	AttackTarget  *Unit
-	BuildTarget   *Building
-	BuildDef      *BuildingDef
-	BuildPos      emath.Vec2
-	HasBuildTask  bool
-	IsBuilding    bool
+	Def                  *UnitDef // Reference to unit definition for data-driven behavior
+	Type                 UnitType
+	Target               emath.Vec2
+	HasTarget            bool
+	Selected             bool
+	Speed                float64
+	StuckCounter         int
+	LastPosition         emath.Vec2
+	Angle                float64       // Body angle (direction unit is facing)
+	TurretAngle          float64       // Turret angle (direction turret is aiming)
+	RotationSpeed        float64       // Body rotation speed
+	TurretRotationSpeed  float64       // Turret rotation speed (faster than body)
+	Health               float64
+	MaxHealth            float64
+	Damage               float64
+	Range                float64
+	FireRate             float64
+	FireCooldown         float64
+	AttackTarget         *Unit
+	BuildingAttackTarget *Building
+	VisionRange          float64
+	PursuitRange         float64   // Range to keep chasing an enemy (usually > fire range)
+	BuildTarget          *Building
+	BuildDef             *BuildingDef
+	BuildPos             emath.Vec2
+	HasBuildTask         bool
+	IsBuilding           bool
+	BuildQueue           []BuildTask // Queue of pending build tasks
+	RepairRate           float64     // Health per second when repairing
+	RepairRange          float64     // Range to repair units
+	RepairTarget         *Unit       // Unit being repaired
 }
 
 const (
-	RotationSpeedTank        = 0.05
-	RotationSpeedConstructor = 0.1
-	RotationSpeedScout       = 0.2
-	RotationSpeedBasic       = 0.08
+	RotationSpeedBasic = 0.08 // Default fallback rotation speed
 )
 
+// NewConstructor creates a constructor unit (convenience function)
 func NewConstructor(id uint64, x, y float64, faction Faction) *Unit {
-	def := UnitDefs[UnitTypeConstructor]
-	return &Unit{
-		Entity: Entity{
-			ID:       id,
-			Position: emath.NewVec2(x, y),
-			Size:     emath.NewVec2(def.Size, def.Size),
-			Color:    GetFactionTintedColor(def.Color, faction),
-			Active:   true,
-			Faction:  faction,
-		},
-		Type:          UnitTypeConstructor,
-		Speed:         def.Speed,
-		RotationSpeed: RotationSpeedConstructor,
-		Health:        def.Health,
-		MaxHealth:     def.Health,
-		Damage:        def.Damage,
-		Range:         def.Range,
-		FireRate:      def.FireRate,
-	}
+	return NewUnitFromDef(id, x, y, UnitDefs[UnitTypeConstructor], faction)
 }
+
+// NewTank creates a tank unit (convenience function)
 func NewTank(id uint64, x, y float64, faction Faction) *Unit {
-	def := UnitDefs[UnitTypeTank]
-	return &Unit{
-		Entity: Entity{
-			ID:       id,
-			Position: emath.NewVec2(x, y),
-			Size:     emath.NewVec2(def.Size, def.Size),
-			Color:    GetFactionTintedColor(def.Color, faction),
-			Active:   true,
-			Faction:  faction,
-		},
-		Type:          UnitTypeTank,
-		Speed:         def.Speed,
-		RotationSpeed: RotationSpeedTank,
-		Health:        def.Health,
-		MaxHealth:     def.Health,
-		Damage:        def.Damage,
-		Range:         def.Range,
-		FireRate:      def.FireRate,
-	}
+	return NewUnitFromDef(id, x, y, UnitDefs[UnitTypeTank], faction)
 }
+
+// NewScout creates a scout unit (convenience function)
 func NewScout(id uint64, x, y float64, faction Faction) *Unit {
-	def := UnitDefs[UnitTypeScout]
-	return &Unit{
-		Entity: Entity{
-			ID:       id,
-			Position: emath.NewVec2(x, y),
-			Size:     emath.NewVec2(def.Size, def.Size),
-			Color:    GetFactionTintedColor(def.Color, faction),
-			Active:   true,
-			Faction:  faction,
-		},
-		Type:          UnitTypeScout,
-		Speed:         def.Speed,
-		RotationSpeed: RotationSpeedScout,
-		Health:        def.Health,
-		MaxHealth:     def.Health,
-		Damage:        def.Damage,
-		Range:         def.Range,
-		FireRate:      def.FireRate,
-	}
+	return NewUnitFromDef(id, x, y, UnitDefs[UnitTypeScout], faction)
 }
+
+// NewUnitFromDef creates a unit from a definition (data-driven)
 func NewUnitFromDef(id uint64, x, y float64, def *UnitDef, faction Faction) *Unit {
-	rotSpeed := RotationSpeedBasic
-	switch def.Type {
-	case UnitTypeTank:
-		rotSpeed = RotationSpeedTank
-	case UnitTypeScout:
-		rotSpeed = RotationSpeedScout
-	case UnitTypeConstructor:
-		rotSpeed = RotationSpeedConstructor
+	rotSpeed := def.RotationSpeed
+	if rotSpeed == 0 {
+		rotSpeed = RotationSpeedBasic
+	}
+	turretRotSpeed := def.TurretRotationSpeed
+	if turretRotSpeed == 0 {
+		turretRotSpeed = rotSpeed * 2 // Default: turret rotates faster than body
 	}
 	return &Unit{
 		Entity: Entity{
@@ -119,18 +84,41 @@ func NewUnitFromDef(id uint64, x, y float64, def *UnitDef, faction Faction) *Uni
 			Active:   true,
 			Faction:  faction,
 		},
-		Type:          def.Type,
-		Speed:         def.Speed,
-		RotationSpeed: rotSpeed,
-		Health:        def.Health,
-		MaxHealth:     def.Health,
-		Damage:        def.Damage,
-		Range:         def.Range,
-		FireRate:      def.FireRate,
+		Def:                 def,
+		Type:                def.Type,
+		Speed:               def.Speed,
+		RotationSpeed:       rotSpeed,
+		TurretRotationSpeed: turretRotSpeed,
+		Health:              def.Health,
+		MaxHealth:           def.Health,
+		Damage:              def.Damage,
+		Range:               def.Range,
+		FireRate:            def.FireRate,
+		VisionRange:         def.VisionRange,
+		PursuitRange:        def.Range * 1.5, // Chase enemies 1.5x further than fire range
+		RepairRate:          def.RepairRate,
+		RepairRange:         def.RepairRange,
 	}
 }
 func (u *Unit) CanBuild() bool {
-	return u.Type == UnitTypeConstructor
+	return u.Def != nil && u.Def.CanConstruct
+}
+
+func (u *Unit) CanRepair() bool {
+	return u.Def != nil && u.Def.CanRepairUnits && u.RepairRate > 0 && u.RepairRange > 0
+}
+func (u *Unit) IsInRepairRange(target *Unit) bool {
+	if target == nil {
+		return false
+	}
+	dist := u.Center().Distance(target.Center())
+	return dist <= u.RepairRange
+}
+func (u *Unit) SetRepairTarget(target *Unit) {
+	u.RepairTarget = target
+}
+func (u *Unit) ClearRepairTarget() {
+	u.RepairTarget = nil
 }
 func (u *Unit) GetBuildOptions() []*BuildingDef {
 	return GetBuildableDefs(u.Type)
@@ -207,17 +195,55 @@ func (u *Unit) SetBuildTask(def *BuildingDef, pos emath.Vec2) {
 	u.HasBuildTask = true
 	u.IsBuilding = false
 	u.BuildTarget = nil
+	// Target a position just below (south of) the building site, so constructor doesn't end up inside
 	buildSiteTarget := emath.Vec2{
-		X: pos.X - u.Size.X - 5,
-		Y: pos.Y + def.Size/2,
+		X: pos.X + def.Size/2,
+		Y: pos.Y + def.Size + u.Size.Y/2 + 5, // Below the building
 	}
 	u.SetTarget(buildSiteTarget)
 }
+
+// QueueBuildTask adds a build task to the queue, or sets it as current if no active task
+func (u *Unit) QueueBuildTask(def *BuildingDef, pos emath.Vec2) {
+	if !u.CanBuild() {
+		return
+	}
+	if !u.HasBuildTask {
+		// No current task, start immediately
+		u.SetBuildTask(def, pos)
+	} else {
+		// Add to queue
+		u.BuildQueue = append(u.BuildQueue, BuildTask{Def: def, Pos: pos})
+	}
+}
+
 func (u *Unit) ClearBuildTask() {
 	u.BuildDef = nil
 	u.BuildTarget = nil
 	u.HasBuildTask = false
 	u.IsBuilding = false
+	// Start next task from queue if available
+	u.StartNextBuildTask()
+}
+
+// StartNextBuildTask starts the next build task from the queue if available
+func (u *Unit) StartNextBuildTask() {
+	if len(u.BuildQueue) == 0 {
+		return
+	}
+	// Pop first task from queue
+	nextTask := u.BuildQueue[0]
+	u.BuildQueue = u.BuildQueue[1:]
+	u.SetBuildTask(nextTask.Def, nextTask.Pos)
+}
+
+// GetBuildQueueLength returns the number of queued build tasks (including current)
+func (u *Unit) GetBuildQueueLength() int {
+	count := len(u.BuildQueue)
+	if u.HasBuildTask {
+		count++
+	}
+	return count
 }
 func (u *Unit) IsNearBuildSite() bool {
 	if !u.HasBuildTask || u.BuildDef == nil {
@@ -241,6 +267,31 @@ func (u *Unit) IsInRange(target *Unit) bool {
 	dist := u.Center().Distance(target.Center())
 	return dist <= u.Range
 }
+
+func (u *Unit) IsBuildingInRange(target *Building) bool {
+	if target == nil {
+		return false
+	}
+	dist := u.Center().Distance(target.Center())
+	return dist <= u.Range
+}
+
+func (u *Unit) IsInPursuitRange(target *Unit) bool {
+	if target == nil {
+		return false
+	}
+	dist := u.Center().Distance(target.Center())
+	return dist <= u.PursuitRange
+}
+
+func (u *Unit) IsBuildingInPursuitRange(target *Building) bool {
+	if target == nil {
+		return false
+	}
+	dist := u.Center().Distance(target.Center())
+	return dist <= u.PursuitRange
+}
+
 func (u *Unit) TakeDamage(damage float64) bool {
 	u.Health -= damage
 	if u.Health <= 0 {
@@ -254,8 +305,17 @@ func (u *Unit) UpdateCombat(dt float64) bool {
 	if u.FireCooldown > 0 {
 		u.FireCooldown -= dt
 	}
-	if u.FireCooldown <= 0 && u.AttackTarget != nil && u.CanAttack() {
-		if u.IsInRange(u.AttackTarget) && u.AttackTarget.Active {
+
+	// Update turret rotation towards target
+	turretAimed := u.UpdateTurret()
+
+	// Only fire if cooldown ready, can attack, and turret is aimed
+	if u.FireCooldown <= 0 && u.CanAttack() && turretAimed {
+		if u.AttackTarget != nil && u.IsInRange(u.AttackTarget) && u.AttackTarget.Active {
+			u.FireCooldown = 1.0 / u.FireRate
+			return true
+		}
+		if u.BuildingAttackTarget != nil && u.IsBuildingInRange(u.BuildingAttackTarget) && u.BuildingAttackTarget.Active {
 			u.FireCooldown = 1.0 / u.FireRate
 			return true
 		}
@@ -264,13 +324,99 @@ func (u *Unit) UpdateCombat(dt float64) bool {
 }
 func (u *Unit) SetAttackTarget(target *Unit) {
 	u.AttackTarget = target
+	u.BuildingAttackTarget = nil
 }
+
+func (u *Unit) SetBuildingAttackTarget(target *Building) {
+	u.BuildingAttackTarget = target
+	u.AttackTarget = nil
+}
+
 func (u *Unit) ClearAttackTarget() {
 	u.AttackTarget = nil
+	u.BuildingAttackTarget = nil
+}
+
+func (u *Unit) HasAnyAttackTarget() bool {
+	return u.AttackTarget != nil || u.BuildingAttackTarget != nil
 }
 func (u *Unit) HealthRatio() float64 {
 	if u.MaxHealth <= 0 {
 		return 1
 	}
 	return u.Health / u.MaxHealth
+}
+
+// UpdateTurret rotates the turret towards the current attack target
+// Returns true if the turret is aimed at the target (within tolerance)
+func (u *Unit) UpdateTurret() bool {
+	var targetPos emath.Vec2
+	hasTarget := false
+
+	if u.AttackTarget != nil && u.AttackTarget.Active {
+		targetPos = u.AttackTarget.Center()
+		hasTarget = true
+	} else if u.BuildingAttackTarget != nil && u.BuildingAttackTarget.Active {
+		targetPos = u.BuildingAttackTarget.Center()
+		hasTarget = true
+	}
+
+	if !hasTarget {
+		return false
+	}
+
+	// Calculate angle to target
+	myCenter := u.Center()
+	toTarget := targetPos.Sub(myCenter)
+	targetAngle := math.Atan2(toTarget.Y, toTarget.X)
+
+	// Rotate turret towards target
+	return u.rotateTurretTowards(targetAngle)
+}
+
+// rotateTurretTowards rotates the turret towards the target angle
+// Returns true if the turret is aimed (within tolerance)
+func (u *Unit) rotateTurretTowards(targetAngle float64) bool {
+	diff := normalizeAngle(targetAngle - u.TurretAngle)
+	aimTolerance := 0.1 // About 6 degrees
+
+	if math.Abs(diff) < aimTolerance {
+		u.TurretAngle = targetAngle
+		return true
+	}
+
+	if math.Abs(diff) < u.TurretRotationSpeed {
+		u.TurretAngle = targetAngle
+	} else if diff > 0 {
+		u.TurretAngle += u.TurretRotationSpeed
+	} else {
+		u.TurretAngle -= u.TurretRotationSpeed
+	}
+	u.TurretAngle = normalizeAngle(u.TurretAngle)
+	return false
+}
+
+// IsTurretAimed returns true if the turret is aimed at the current target
+func (u *Unit) IsTurretAimed() bool {
+	var targetPos emath.Vec2
+	hasTarget := false
+
+	if u.AttackTarget != nil && u.AttackTarget.Active {
+		targetPos = u.AttackTarget.Center()
+		hasTarget = true
+	} else if u.BuildingAttackTarget != nil && u.BuildingAttackTarget.Active {
+		targetPos = u.BuildingAttackTarget.Center()
+		hasTarget = true
+	}
+
+	if !hasTarget {
+		return false
+	}
+
+	myCenter := u.Center()
+	toTarget := targetPos.Sub(myCenter)
+	targetAngle := math.Atan2(toTarget.Y, toTarget.X)
+	diff := normalizeAngle(targetAngle - u.TurretAngle)
+
+	return math.Abs(diff) < 0.1
 }

@@ -2,6 +2,7 @@ package collision
 
 import (
 	emath "github.com/bklimczak/tanks/engine/math"
+	"math"
 )
 
 type TerrainChecker interface {
@@ -134,4 +135,55 @@ func (s *System) clampToWorld(pos emath.Vec2, size emath.Vec2) emath.Vec2 {
 		pos.Y = s.worldBounds.Pos.Y + s.worldBounds.Size.Y - size.Y
 	}
 	return pos
+}
+
+// CalculateAvoidanceDirection finds an alternative movement direction when blocked.
+// It tries multiple angles offset from the desired direction and returns the best passable one.
+func (s *System) CalculateAvoidanceDirection(mover emath.Rect, target emath.Vec2, speed float64, obstacles []emath.Rect) emath.Vec2 {
+	moverCenter := emath.Vec2{X: mover.Pos.X + mover.Size.X/2, Y: mover.Pos.Y + mover.Size.Y/2}
+	toTarget := target.Sub(moverCenter)
+	distToTarget := toTarget.Length()
+	if distToTarget < 1 {
+		return mover.Pos
+	}
+
+	baseAngle := math.Atan2(toTarget.Y, toTarget.X)
+
+	// Try angles in alternating pattern: 0, +30, -30, +60, -60, +90, -90, etc.
+	angles := []float64{0}
+	for offset := math.Pi / 6; offset <= math.Pi; offset += math.Pi / 6 {
+		angles = append(angles, offset, -offset)
+	}
+
+	for _, angleOffset := range angles {
+		testAngle := baseAngle + angleOffset
+		velocity := emath.Vec2{
+			X: math.Cos(testAngle) * speed,
+			Y: math.Sin(testAngle) * speed,
+		}
+		testPos := mover.Pos.Add(velocity)
+		testPos = s.clampToWorld(testPos, mover.Size)
+		testBounds := emath.Rect{Pos: testPos, Size: mover.Size}
+
+		// Check terrain
+		if s.terrain != nil && !s.terrain.IsPassable(testBounds) {
+			continue
+		}
+
+		// Check obstacles
+		blocked := false
+		for _, obs := range obstacles {
+			if testBounds.Intersects(obs) {
+				blocked = true
+				break
+			}
+		}
+
+		if !blocked {
+			return testPos
+		}
+	}
+
+	// No valid direction found, stay in place
+	return mover.Pos
 }

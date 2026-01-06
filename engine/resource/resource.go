@@ -80,15 +80,15 @@ type Manager struct {
 func NewManager() *Manager {
 	m := &Manager{}
 	m.resources[Metal] = &Resource{
-		Current:     500,
+		Current:     1000,
 		Capacity:    1000,
-		Production:  2,
+		Production:  102,
 		Consumption: 0,
 	}
 	m.resources[Energy] = &Resource{
-		Current:     500,
+		Current:     2000,
 		Capacity:    2000,
-		Production:  10,
+		Production:  110,
 		Consumption: 0,
 	}
 	return m

@@ -26,6 +26,7 @@ type State struct {
 	IsDragging       bool
 	DragStart        emath.Vec2
 	DragEnd          emath.Vec2
+	MouseWheelY      float64 // Mouse wheel vertical scroll (positive = up/zoom in)
 }
 type Manager struct {
 	state         State
@@ -56,6 +57,9 @@ func (m *Manager) Update() {
 	m.state.MenuUp = inpututil.IsKeyJustPressed(ebiten.KeyUp)
 	m.state.MenuDown = inpututil.IsKeyJustPressed(ebiten.KeyDown)
 	m.state.EnterPressed = inpututil.IsKeyJustPressed(ebiten.KeyEnter)
+	// Mouse wheel for zoom
+	_, wheelY := ebiten.Wheel()
+	m.state.MouseWheelY = wheelY
 	if m.state.LeftJustPressed {
 		m.state.DragStart = m.state.MousePos
 		m.dragStarted = true
