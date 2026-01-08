@@ -8,21 +8,9 @@ permissions:
   contents: write
 
 jobs:
-  build-linux-windows:
-    name: Build ${{ matrix.os }}-${{ matrix.arch }}
+  build-windows:
+    name: Build Windows
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        include:
-          - os: windows
-            arch: amd64
-            ext: .exe
-          - os: linux
-            arch: amd64
-            ext: ""
-          - os: linux
-            arch: arm64
-            ext: ""
 
     steps:
       - name: Checkout code
@@ -35,17 +23,17 @@ jobs:
 
       - name: Build binary
         env:
-          GOOS: ${{ matrix.os }}
-          GOARCH: ${{ matrix.arch }}
+          GOOS: windows
+          GOARCH: amd64
           CGO_ENABLED: 0
         run: |
-          go build -ldflags "-s -w" -o tanks${{ matrix.ext }} ./cmd/game
+          go build -ldflags "-s -w" -o tanks.exe ./cmd/game
 
       - name: Create distribution package
         run: |
-          DIST_NAME="tanks-${{ matrix.os }}-${{ matrix.arch }}-${{ github.ref_name }}"
+          DIST_NAME="tanks-windows-amd64-${{ github.ref_name }}"
           mkdir -p "$DIST_NAME"
-          cp tanks${{ matrix.ext }} "$DIST_NAME/"
+          cp tanks.exe "$DIST_NAME/"
           cp -r assets "$DIST_NAME/"
           cp -r maps "$DIST_NAME/"
           zip -r "$DIST_NAME.zip" "$DIST_NAME"
@@ -53,12 +41,54 @@ jobs:
       - name: Upload release asset
         uses: softprops/action-gh-release@v1
         with:
-          files: tanks-${{ matrix.os }}-${{ matrix.arch }}-${{ github.ref_name }}.zip
+          files: tanks-windows-amd64-${{ github.ref_name }}.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-linux:
+    name: Build Linux
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.21"
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgl1-mesa-dev xorg-dev libasound2-dev
+
+      - name: Build binary
+        env:
+          GOOS: linux
+          GOARCH: amd64
+          CGO_ENABLED: 1
+        run: |
+          go build -ldflags "-s -w" -o tanks ./cmd/game
+
+      - name: Create distribution package
+        run: |
+          DIST_NAME="tanks-linux-amd64-${{ github.ref_name }}"
+          mkdir -p "$DIST_NAME"
+          cp tanks "$DIST_NAME/"
+          cp -r assets "$DIST_NAME/"
+          cp -r maps "$DIST_NAME/"
+          zip -r "$DIST_NAME.zip" "$DIST_NAME"
+
+      - name: Upload release asset
+        uses: softprops/action-gh-release@v1
+        with:
+          files: tanks-linux-amd64-${{ github.ref_name }}.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   build-macos:
-    name: Build darwin-${{ matrix.arch }}
+    name: Build macOS ${{ matrix.arch }}
     runs-on: macos-latest
     strategy:
       matrix:
@@ -79,6 +109,7 @@ jobs:
         env:
           GOOS: darwin
           GOARCH: ${{ matrix.arch }}
+          CGO_ENABLED: 1
         run: |
           go build -ldflags "-s -w" -o tanks ./cmd/game
 
