@@ -10,11 +10,13 @@ import (
 
 	"github.com/bklimczak/tanks/engine"
 	"github.com/bklimczak/tanks/engine/ai"
+	"github.com/bklimczak/tanks/engine/campaign"
 	"github.com/bklimczak/tanks/engine/entity"
 	"github.com/bklimczak/tanks/engine/fog"
 	"github.com/bklimczak/tanks/engine/input"
 	emath "github.com/bklimczak/tanks/engine/math"
 	"github.com/bklimczak/tanks/engine/resource"
+	"github.com/bklimczak/tanks/engine/save"
 	"github.com/bklimczak/tanks/engine/terrain"
 	"github.com/bklimczak/tanks/engine/ui"
 	"github.com/hajimehoshi/ebiten/v2"
@@ -26,7 +28,12 @@ type GameState int
 
 const (
 	StateMenu GameState = iota
+	StateCampaignMenu
+	StateMissionBriefing
 	StatePlaying
+	StatePaused
+	StateVictory
+	StateDefeat
 )
 const (
 	unitSize         = 20.0
@@ -55,9 +62,16 @@ type Game struct {
 	commandPanel      *ui.CommandPanel
 	minimap           *ui.Minimap
 	mainMenu          *ui.MainMenu
+	tooltip           *ui.Tooltip
+	infoPanel         *ui.InfoPanel
+	pauseMenu         *ui.PauseMenu
+	saveMenu          *ui.SaveMenu
+	campaignMenu      *ui.CampaignMenu
+	missionBriefing   *ui.MissionBriefing
 	enemyAI           *ai.EnemyAI
 	tankSprite        *ebiten.Image
 	tankFactorySprite *ebiten.Image
+	barracksSprite    *ebiten.Image
 	scoutSprite       *ebiten.Image
 	tileImages        map[color.RGBA]*ebiten.Image
 	terrainCache      *ebiten.Image
@@ -75,6 +89,11 @@ type Game struct {
 	placementDef      *entity.BuildingDef
 	placementValid    bool
 	whitePixel        *ebiten.Image
+	saveManager       *save.Manager
+	campaignManager   *campaign.Manager
+	currentCampaign   string
+	currentMission    *campaign.Mission
+	isSkirmishMode    bool
 }
 
 func NewGame() *Game {
@@ -83,6 +102,10 @@ func NewGame() *Game {
 	minimapY := baseHeight - minimapHeight - minimapMargin
 	minimap := ui.NewMinimap(minimapMargin, minimapY, minimapWidth, minimapHeight)
 	mainMenu := ui.NewMainMenu()
+	pauseMenu := ui.NewPauseMenu()
+	saveMenu := ui.NewSaveMenu()
+	campaignMenu := ui.NewCampaignMenu()
+	missionBriefing := ui.NewMissionBriefing()
 	tankSprite, _, err := ebitenutil.NewImageFromFile("assets/tank.png")
 	if err != nil {
 		log.Printf("Warning: could not load tank sprite: %v", err)
@@ -90,6 +113,10 @@ func NewGame() *Game {
 	tankFactorySprite, _, err := ebitenutil.NewImageFromFile("assets/tank_factory.png")
 	if err != nil {
 		log.Printf("Warning: could not load tank factory sprite: %v", err)
+	}
+	barracksSprite, _, err := ebitenutil.NewImageFromFile("assets/buildings/barracks.png")
+	if err != nil {
+		log.Printf("Warning: could not load barracks sprite: %v", err)
 	}
 	scoutSprite, _, err := ebitenutil.NewImageFromFile("assets/scout.png")
 	if err != nil {
@@ -107,6 +134,19 @@ func NewGame() *Game {
 	actualWorldWidth := terrainMap.PixelWidth
 	actualWorldHeight := terrainMap.PixelHeight
 	minimap.SetWorldSize(actualWorldWidth, actualWorldHeight)
+	tooltip := ui.NewTooltip()
+	tooltip.SetScreenSize(baseWidth, baseHeight)
+	infoPanel := ui.NewInfoPanel(baseWidth, baseHeight)
+
+	saveManager, err := save.NewManager()
+	if err != nil {
+		log.Printf("Warning: could not initialize save manager: %v", err)
+	}
+	campaignManager, err := campaign.NewManager("campaigns")
+	if err != nil {
+		log.Printf("Warning: could not load campaigns: %v", err)
+	}
+
 	g := &Game{
 		engine:            engine.New(actualWorldWidth, actualWorldHeight, baseWidth, baseHeight),
 		terrainMap:        terrainMap,
@@ -115,17 +155,34 @@ func NewGame() *Game {
 		commandPanel:      commandPanel,
 		minimap:           minimap,
 		mainMenu:          mainMenu,
+		pauseMenu:         pauseMenu,
+		saveMenu:          saveMenu,
+		campaignMenu:      campaignMenu,
+		missionBriefing:   missionBriefing,
+		tooltip:           tooltip,
+		infoPanel:         infoPanel,
 		tankSprite:        tankSprite,
 		tankFactorySprite: tankFactorySprite,
+		barracksSprite:    barracksSprite,
 		scoutSprite:       scoutSprite,
 		state:             StateMenu,
+		saveManager:       saveManager,
+		campaignManager:   campaignManager,
 	}
 	g.engine.Collision.SetTerrain(terrainMap)
+	if campaignManager != nil {
+		g.campaignMenu.SetCampaignManager(campaignManager)
+	}
 
-	// === PLAYER BASE SETUP ===
+	g.setupPlayerBase()
+	g.setupEnemyBase()
+
+	return g
+}
+
+func (g *Game) setupPlayerBase() {
 	startX, startY := g.findPassablePosition(300, 200)
 
-	// Create Command Nexus (starting building)
 	nexusDef := entity.BuildingDefs[entity.BuildingCommandNexus]
 	commandNexus := entity.NewBuilding(g.nextBuildingID, startX, startY, nexusDef)
 	commandNexus.Faction = entity.FactionPlayer
@@ -135,7 +192,6 @@ func NewGame() *Game {
 	g.nextBuildingID++
 	g.applyBuildingEffects(nexusDef)
 
-	// Create starting Solar Array for power
 	solarDef := entity.BuildingDefs[entity.BuildingSolarArray]
 	solarX, solarY := g.findPassablePosition(startX+nexusDef.Size+20, startY)
 	solarArray := entity.NewBuilding(g.nextBuildingID, solarX, solarY, solarDef)
@@ -146,14 +202,12 @@ func NewGame() *Game {
 	g.nextBuildingID++
 	g.applyBuildingEffects(solarDef)
 
-	// Create starting Technician (constructor unit)
 	techDef := entity.UnitDefs[entity.UnitTypeTechnician]
 	techX, techY := g.findPassablePosition(startX+nexusDef.Size/2, startY+nexusDef.Size+20)
 	technician := entity.NewUnitFromDef(g.nextUnitID, techX, techY, techDef, entity.FactionPlayer)
 	g.units = append(g.units, technician)
 	g.nextUnitID++
 
-	// Create starting Troopers
 	for i := 0; i < 3; i++ {
 		trooperDef := entity.UnitDefs[entity.UnitTypeTrooper]
 		tx, ty := g.findPassablePosition(startX+float64(i)*25, startY+nexusDef.Size+60)
@@ -162,18 +216,18 @@ func NewGame() *Game {
 		g.nextUnitID++
 	}
 
-	// Create starting Recon Skimmer
 	skimmerDef := entity.UnitDefs[entity.UnitTypeReconSkimmer]
 	skimmerX, skimmerY := g.findPassablePosition(startX+100, startY+nexusDef.Size+60)
 	skimmer := entity.NewUnitFromDef(g.nextUnitID, skimmerX, skimmerY, skimmerDef, entity.FactionPlayer)
 	g.units = append(g.units, skimmer)
 	g.nextUnitID++
+}
 
-	// === ENEMY BASE SETUP ===
+func (g *Game) setupEnemyBase() {
 	enemyBaseX, enemyBaseY := 3500.0, 2700.0
 	g.enemyAI = ai.NewEnemyAI(enemyBaseX, enemyBaseY)
 
-	// Create enemy Command Nexus
+	nexusDef := entity.BuildingDefs[entity.BuildingCommandNexus]
 	enemyNexusX, enemyNexusY := g.findPassablePosition(enemyBaseX, enemyBaseY)
 	enemyNexus := entity.NewBuilding(g.nextBuildingID, enemyNexusX, enemyNexusY, nexusDef)
 	enemyNexus.Faction = entity.FactionEnemy
@@ -183,7 +237,6 @@ func NewGame() *Game {
 	g.buildings = append(g.buildings, enemyNexus)
 	g.nextBuildingID++
 
-	// Create enemy Hover Bay
 	hoverBayDef := entity.BuildingDefs[entity.BuildingHoverBay]
 	hoverBayX, hoverBayY := g.findPassablePosition(enemyBaseX+nexusDef.Size+20, enemyBaseY)
 	enemyHoverBay := entity.NewBuilding(g.nextBuildingID, hoverBayX, hoverBayY, hoverBayDef)
@@ -194,7 +247,6 @@ func NewGame() *Game {
 	g.buildings = append(g.buildings, enemyHoverBay)
 	g.nextBuildingID++
 
-	// Create initial enemy units - Strikers
 	for i := 0; i < 2; i++ {
 		strikerDef := entity.UnitDefs[entity.UnitTypeStriker]
 		ex, ey := g.findPassablePosition(enemyBaseX-50+float64(i)*40, enemyBaseY+nexusDef.Size+40)
@@ -203,13 +255,11 @@ func NewGame() *Game {
 		g.nextUnitID++
 	}
 
-	// Create enemy Recon Skimmer
+	skimmerDef := entity.UnitDefs[entity.UnitTypeReconSkimmer]
 	enemySkimmerX, enemySkimmerY := g.findPassablePosition(enemyBaseX+50, enemyBaseY+nexusDef.Size+80)
 	enemySkimmer := entity.NewUnitFromDef(g.nextUnitID, enemySkimmerX, enemySkimmerY, skimmerDef, entity.FactionEnemy)
 	g.units = append(g.units, enemySkimmer)
 	g.nextUnitID++
-
-	return g
 }
 func (g *Game) findPassablePosition(x, y float64) (float64, float64) {
 	bounds := emath.NewRect(x, y, unitSize, unitSize)
@@ -239,11 +289,53 @@ func (g *Game) Update() error {
 	switch g.state {
 	case StateMenu:
 		return g.updateMenu(inputState)
+	case StateCampaignMenu:
+		return g.updateCampaignMenu(inputState)
+	case StateMissionBriefing:
+		return g.updateMissionBriefing(inputState)
 	case StatePlaying:
 		return g.updatePlaying(inputState)
+	case StatePaused:
+		return g.updatePaused(inputState)
+	case StateVictory, StateDefeat:
+		return g.updateEndScreen(inputState)
 	}
 	return nil
 }
+func (g *Game) updateEndScreen(inputState input.State) error {
+	if inputState.EscapePressed {
+		return ebiten.Termination
+	}
+	if inputState.EnterPressed {
+		g.resetGame()
+		g.state = StateMenu
+	}
+	return nil
+}
+
+func (g *Game) resetGame() {
+	g.units = nil
+	g.buildings = nil
+	g.wreckages = nil
+	g.projectiles = nil
+	g.nextUnitID = 0
+	g.nextBuildingID = 0
+	g.nextWreckageID = 0
+	g.nextProjectileID = 0
+	g.placementMode = false
+	g.placementDef = nil
+	g.terrainCache = nil
+
+	g.engine.Resources = resource.NewManager()
+
+	actualWorldWidth := g.terrainMap.PixelWidth
+	actualWorldHeight := g.terrainMap.PixelHeight
+	g.fogOfWar = fog.New(actualWorldWidth, actualWorldHeight, terrain.TileSize)
+
+	g.setupPlayerBase()
+	g.setupEnemyBase()
+}
+
 func (g *Game) updateMenu(inputState input.State) error {
 	g.mainMenu.UpdateSize(float64(g.screenWidth), float64(g.screenHeight))
 	if inputState.EscapePressed {
@@ -264,12 +356,188 @@ func (g *Game) updateMenu(inputState input.State) error {
 }
 func (g *Game) handleMenuSelection(option ui.MenuOption) error {
 	switch option {
-	case ui.MenuOptionStartGame:
+	case ui.MenuOptionCampaign:
+		if g.campaignManager != nil {
+			campaigns := g.campaignManager.GetCampaigns()
+			if len(campaigns) > 0 {
+				g.currentCampaign = campaigns[0].ID
+				missions := g.campaignManager.GetCampaignMissions(g.currentCampaign)
+				g.campaignMenu.Show(g.currentCampaign, missions)
+				g.state = StateCampaignMenu
+			}
+		}
+	case ui.MenuOptionSkirmish:
+		g.isSkirmishMode = true
+		g.currentMission = nil
+		g.resetGame()
 		g.state = StatePlaying
+	case ui.MenuOptionLoadGame:
+		g.saveMenu.Show(ui.SaveModeLoad, g.saveManager.ListSaves())
+		g.state = StatePaused
 	case ui.MenuOptionExit:
 		return ebiten.Termination
 	}
 	return nil
+}
+
+func (g *Game) updateCampaignMenu(inputState input.State) error {
+	g.campaignMenu.UpdateSize(float64(g.screenWidth), float64(g.screenHeight))
+	g.campaignMenu.UpdateHover(inputState.MousePos)
+
+	if inputState.LeftJustPressed {
+		if mission := g.campaignMenu.HandleClick(inputState.MousePos); mission != nil {
+			g.currentMission = mission
+			g.missionBriefing.Show(mission)
+			g.state = StateMissionBriefing
+			return nil
+		}
+	}
+
+	selectedMission, cancelled := g.campaignMenu.Update(
+		inputState.MenuUp,
+		inputState.MenuDown,
+		inputState.EnterPressed,
+		inputState.EscapePressed,
+	)
+
+	if cancelled {
+		g.campaignMenu.Hide()
+		g.state = StateMenu
+		return nil
+	}
+
+	if selectedMission != nil {
+		g.currentMission = selectedMission
+		g.missionBriefing.Show(selectedMission)
+		g.state = StateMissionBriefing
+	}
+
+	return nil
+}
+
+func (g *Game) updateMissionBriefing(inputState input.State) error {
+	g.missionBriefing.UpdateSize(float64(g.screenWidth), float64(g.screenHeight))
+
+	start, cancelled := g.missionBriefing.Update(inputState.EnterPressed, inputState.EscapePressed)
+
+	if cancelled {
+		g.missionBriefing.Hide()
+		g.state = StateCampaignMenu
+		return nil
+	}
+
+	if start && g.currentMission != nil {
+		g.missionBriefing.Hide()
+		g.isSkirmishMode = false
+		g.startMission(g.currentMission)
+		g.state = StatePlaying
+	}
+
+	return nil
+}
+
+func (g *Game) updatePaused(inputState input.State) error {
+	g.pauseMenu.UpdateSize(float64(g.screenWidth), float64(g.screenHeight))
+	g.saveMenu.UpdateSize(float64(g.screenWidth), float64(g.screenHeight))
+
+	if g.saveMenu.IsVisible() {
+		g.saveMenu.UpdateHover(inputState.MousePos)
+
+		if inputState.LeftJustPressed {
+			slot := g.saveMenu.HandleClick(inputState.MousePos)
+			if slot >= 0 {
+				g.handleSaveSlotSelection(slot)
+				return nil
+			}
+		}
+
+		slot, cancelled := g.saveMenu.Update(
+			inputState.MenuUp,
+			inputState.MenuDown,
+			inputState.EnterPressed,
+			inputState.EscapePressed,
+		)
+
+		if cancelled {
+			g.saveMenu.Hide()
+			return nil
+		}
+
+		if slot >= 0 {
+			g.handleSaveSlotSelection(slot)
+		}
+		return nil
+	}
+
+	g.pauseMenu.UpdateHover(inputState.MousePos)
+
+	if inputState.EscapePressed {
+		g.state = StatePlaying
+		return nil
+	}
+
+	if inputState.LeftJustPressed {
+		if option := g.pauseMenu.HandleClick(inputState.MousePos); option >= 0 {
+			return g.handlePauseMenuSelection(option)
+		}
+	}
+
+	option := g.pauseMenu.Update(
+		inputState.MenuUp,
+		inputState.MenuDown,
+		inputState.EnterPressed,
+	)
+
+	if option >= 0 {
+		return g.handlePauseMenuSelection(option)
+	}
+
+	return nil
+}
+
+func (g *Game) handlePauseMenuSelection(option ui.PauseMenuOption) error {
+	switch option {
+	case ui.PauseOptionResume:
+		g.state = StatePlaying
+	case ui.PauseOptionSave:
+		g.saveMenu.Show(ui.SaveModeSave, g.saveManager.ListSaves())
+	case ui.PauseOptionLoad:
+		g.saveMenu.Show(ui.SaveModeLoad, g.saveManager.ListSaves())
+	case ui.PauseOptionMainMenu:
+		g.state = StateMenu
+	case ui.PauseOptionQuit:
+		return ebiten.Termination
+	}
+	return nil
+}
+
+func (g *Game) handleSaveSlotSelection(slot int) {
+	mode := g.saveMenu.Mode()
+	if mode == ui.SaveModeSave {
+		missionID := ""
+		if g.currentMission != nil {
+			missionID = g.currentMission.ID
+		}
+		state := g.ToSaveState()
+		saveName := fmt.Sprintf("Save Slot %d", slot+1)
+		if err := g.saveManager.SaveGame(state, slot, saveName, missionID); err != nil {
+			log.Printf("Failed to save game: %v", err)
+		}
+		g.saveMenu.Hide()
+	} else {
+		saveFile, err := g.saveManager.LoadGame(slot)
+		if err != nil {
+			log.Printf("Failed to load game: %v", err)
+			return
+		}
+		g.LoadFromSaveState(&saveFile.GameState)
+		g.saveMenu.Hide()
+		g.state = StatePlaying
+	}
+}
+
+func (g *Game) startMission(mission *campaign.Mission) {
+	g.resetGame()
 }
 func (g *Game) updatePlaying(inputState input.State) error {
 	if inputState.EscapePressed {
@@ -277,7 +545,7 @@ func (g *Game) updatePlaying(inputState input.State) error {
 			g.placementMode = false
 			g.placementDef = nil
 		} else {
-			g.state = StateMenu
+			g.state = StatePaused
 			return nil
 		}
 	}
@@ -353,7 +621,21 @@ func (g *Game) updatePlaying(inputState input.State) error {
 			} else {
 				g.commandPanel.Update(inputState.MousePos, false)
 			}
+			if hoveredBuilding := g.commandPanel.GetHoveredBuilding(inputState.MousePos); hoveredBuilding != nil {
+				bounds := g.commandPanel.GetHoveredButtonBounds(inputState.MousePos)
+				if bounds != nil {
+					g.tooltip.ShowBuilding(hoveredBuilding, bounds.Pos.X+bounds.Size.X+5, bounds.Pos.Y)
+				}
+			} else if hoveredUnit := g.commandPanel.GetHoveredUnit(inputState.MousePos); hoveredUnit != nil {
+				bounds := g.commandPanel.GetHoveredButtonBounds(inputState.MousePos)
+				if bounds != nil {
+					g.tooltip.ShowUnit(hoveredUnit, bounds.Pos.X+bounds.Size.X+5, bounds.Pos.Y)
+				}
+			} else {
+				g.tooltip.Hide()
+			}
 		} else {
+			g.tooltip.Hide()
 			g.handleSelection(inputState)
 			if inputState.RightJustPressed {
 				worldPos := cam.ScreenToWorld(inputState.MousePos)
@@ -366,7 +648,50 @@ func (g *Game) updatePlaying(inputState input.State) error {
 	g.updateBuildings()
 	g.updateAI()
 	g.updateFogOfWar()
+	g.updateInfoPanel()
+	g.checkVictoryConditions()
 	return nil
+}
+
+func (g *Game) updateInfoPanel() {
+	selectedBuilding := g.getSelectedBuilding()
+	if selectedBuilding != nil {
+		g.infoPanel.SetBuilding(selectedBuilding)
+	} else {
+		g.infoPanel.Hide()
+	}
+}
+
+func (g *Game) checkVictoryConditions() {
+	enemyUnits := 0
+	enemyBuildings := 0
+	playerUnits := 0
+	playerBuildings := 0
+
+	for _, u := range g.units {
+		if !u.Active {
+			continue
+		}
+		if u.Faction == entity.FactionEnemy {
+			enemyUnits++
+		} else if u.Faction == entity.FactionPlayer {
+			playerUnits++
+		}
+	}
+
+	for _, b := range g.buildings {
+		if b.Faction == entity.FactionEnemy {
+			enemyBuildings++
+		} else if b.Faction == entity.FactionPlayer {
+			playerBuildings++
+		}
+	}
+
+	if enemyUnits == 0 && enemyBuildings == 0 {
+		g.state = StateVictory
+	} else if playerUnits == 0 && playerBuildings == 0 {
+		g.state = StateDefeat
+	}
 }
 func (g *Game) handleSelection(inputState input.State) {
 	if inputState.MousePos.Y < g.resourceBar.Height() {
@@ -867,6 +1192,15 @@ func (g *Game) getSelectedFactory() *entity.Building {
 	}
 	return nil
 }
+
+func (g *Game) getSelectedBuilding() *entity.Building {
+	for _, b := range g.buildings {
+		if b.Selected && b.Faction == entity.FactionPlayer {
+			return b
+		}
+	}
+	return nil
+}
 func snapToGrid(pos emath.Vec2) emath.Vec2 {
 	return emath.Vec2{
 		X: math.Floor(pos.X/buildingGridSize) * buildingGridSize,
@@ -933,10 +1267,60 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	case StateMenu:
 		g.mainMenu.Draw(screen)
 		return
+	case StateCampaignMenu:
+		g.mainMenu.Draw(screen)
+		g.campaignMenu.Draw(screen)
+		return
+	case StateMissionBriefing:
+		g.mainMenu.Draw(screen)
+		g.missionBriefing.Draw(screen)
+		return
 	case StatePlaying:
 		g.drawPlaying(screen)
+	case StatePaused:
+		g.drawPlaying(screen)
+		g.pauseMenu.Draw(screen)
+		g.saveMenu.Draw(screen)
+	case StateVictory:
+		g.drawPlaying(screen)
+		g.drawEndScreen(screen, "VICTORY!", color.RGBA{0, 200, 0, 255})
+	case StateDefeat:
+		g.drawPlaying(screen)
+		g.drawEndScreen(screen, "DEFEAT", color.RGBA{200, 0, 0, 255})
 	}
 }
+
+func (g *Game) drawEndScreen(screen *ebiten.Image, text string, textColor color.RGBA) {
+	screenW, screenH := screen.Bounds().Dx(), screen.Bounds().Dy()
+
+	overlayColor := color.RGBA{0, 0, 0, 180}
+	vector.FillRect(screen, 0, 0, float32(screenW), float32(screenH), overlayColor, false)
+
+	boxWidth := 400.0
+	boxHeight := 200.0
+	boxX := (float64(screenW) - boxWidth) / 2
+	boxY := (float64(screenH) - boxHeight) / 2
+
+	boxColor := color.RGBA{30, 30, 40, 240}
+	borderColor := color.RGBA{80, 80, 100, 255}
+	vector.FillRect(screen, float32(boxX), float32(boxY), float32(boxWidth), float32(boxHeight), boxColor, false)
+	vector.StrokeRect(screen, float32(boxX), float32(boxY), float32(boxWidth), float32(boxHeight), 2, borderColor, false)
+
+	textX := int(boxX) + int(boxWidth)/2 - len(text)*4
+	textY := int(boxY) + 60
+	ebitenutil.DebugPrintAt(screen, text, textX, textY)
+
+	vector.FillRect(screen, float32(boxX)+20, float32(boxY)+20, 10, 10, textColor, false)
+	vector.FillRect(screen, float32(boxX)+float32(boxWidth)-30, float32(boxY)+20, 10, 10, textColor, false)
+	vector.FillRect(screen, float32(boxX)+20, float32(boxY)+float32(boxHeight)-30, 10, 10, textColor, false)
+	vector.FillRect(screen, float32(boxX)+float32(boxWidth)-30, float32(boxY)+float32(boxHeight)-30, 10, 10, textColor, false)
+
+	instruction := "Press ENTER to return to menu or ESC to quit"
+	instrX := int(boxX) + int(boxWidth)/2 - len(instruction)*3
+	instrY := int(boxY) + 120
+	ebitenutil.DebugPrintAt(screen, instruction, instrX, instrY)
+}
+
 func (g *Game) drawPlaying(screen *ebiten.Image) {
 	r := g.engine.Renderer
 	cam := g.engine.Camera
@@ -1015,6 +1399,8 @@ func (g *Game) drawPlaying(screen *ebiten.Image) {
 	fpsText := fmt.Sprintf("FPS: %.1f  TPS: %.1f  Units: %d  Buildings: %d  Projectiles: %d",
 		ebiten.ActualFPS(), ebiten.ActualTPS(), len(g.units), len(g.buildings), len(g.projectiles))
 	ebitenutil.DebugPrintAt(screen, fpsText, 10, int(baseHeight)-20)
+	g.infoPanel.Draw(screen)
+	g.tooltip.Draw(screen)
 }
 func (g *Game) getTileImage(c color.RGBA) *ebiten.Image {
 	if g.tileImages == nil {
@@ -1433,6 +1819,20 @@ func (g *Game) drawBuilding(screen *ebiten.Image, b *entity.Building) {
 		op.GeoM.Scale(scaleX, scaleY)
 		op.GeoM.Translate(screenCenter.X, screenCenter.Y)
 		screen.DrawImage(g.tankFactorySprite, op)
+	} else if b.Type == entity.BuildingBarracks && g.barracksSprite != nil && b.Completed {
+		spriteW := float64(g.barracksSprite.Bounds().Dx())
+		spriteH := float64(g.barracksSprite.Bounds().Dy())
+		targetSize := b.Def.Size * zoom
+		scaleX := targetSize / spriteW
+		scaleY := targetSize / spriteH
+		op := &ebiten.DrawImageOptions{}
+		op.GeoM.Translate(-spriteW/2, -spriteH/2)
+		op.GeoM.Scale(scaleX, scaleY)
+		op.GeoM.Translate(screenCenter.X, screenCenter.Y)
+		if b.Faction == entity.FactionEnemy {
+			op.ColorScale.Scale(1.2, 0.6, 0.6, 1)
+		}
+		screen.DrawImage(g.barracksSprite, op)
 	} else if b.Completed {
 		r.DrawRect(screen, screenBounds, b.Color)
 	} else {
@@ -1525,6 +1925,12 @@ func (g *Game) drawPlacementPreview(screen *ebiten.Image) {
 	r.DrawRectOutline(screen, screenBounds, 2, borderColor)
 }
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
+	if g.screenWidth != outsideWidth || g.screenHeight != outsideHeight {
+		g.screenWidth = outsideWidth
+		g.screenHeight = outsideHeight
+		g.tooltip.SetScreenSize(float64(outsideWidth), float64(outsideHeight))
+		g.infoPanel.UpdatePosition(float64(outsideWidth), float64(outsideHeight))
+	}
 	return outsideWidth, outsideHeight
 }
 func main() {

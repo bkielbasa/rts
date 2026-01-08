@@ -173,3 +173,15 @@ func (c *Camera) zoomAtPoint(delta float64, screenPos emath.Vec2) {
 func (c *Camera) GetZoom() float64 {
 	return c.Zoom
 }
+
+// SetZoom sets the zoom level directly
+func (c *Camera) SetZoom(zoom float64) {
+	c.Zoom = zoom
+	if c.Zoom < minZoom {
+		c.Zoom = minZoom
+	}
+	if c.Zoom > maxZoom {
+		c.Zoom = maxZoom
+	}
+	c.clampPosition()
+}

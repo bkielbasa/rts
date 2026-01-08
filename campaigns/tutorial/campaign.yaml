@@ -1,0 +1,7 @@
+id: "tutorial"
+name: "Tutorial Campaign"
+description: "Learn the basics of commanding your forces in this introductory campaign."
+missions:
+  - "mission_01_movement.yaml"
+  - "mission_02_combat.yaml"
+  - "mission_03_building.yaml"

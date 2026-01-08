@@ -1,0 +1,41 @@
+id: "tutorial_02"
+name: "First Blood"
+description: "Learn the basics of combat by destroying enemy units."
+map: "maps/default.yaml"
+
+player_start:
+  position: {x: 300, y: 200}
+  resources: {credits: 100, energy: 50, alloys: 0}
+  units:
+    - type: "Trooper"
+      position: {x: 320, y: 250}
+      count: 4
+    - type: "Striker"
+      position: {x: 350, y: 280}
+      count: 2
+
+enemy_start:
+  position: {x: 800, y: 500}
+  resources: {credits: 0, energy: 0, alloys: 0}
+  units:
+    - type: "Trooper"
+      position: {x: 820, y: 520}
+      count: 3
+
+victory_conditions:
+  - type: "destroy_all_enemies"
+
+defeat_conditions:
+  - type: "lose_all_units"
+
+restrictions:
+  can_build: false
+  can_produce: false
+
+briefing:
+  title: "First Blood"
+  objectives:
+    - "Destroy all enemy units"
+  background: "Enemy scouts have been spotted in the area! Move your forces to engage and eliminate them. Your units will automatically attack enemies within range, but you can also order them to attack specific targets."
+
+difficulty: "easy"

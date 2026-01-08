@@ -1,0 +1,43 @@
+id: "tutorial_03"
+name: "Establish Base"
+description: "Learn to construct buildings and produce units."
+map: "maps/default.yaml"
+
+player_start:
+  position: {x: 300, y: 200}
+  resources: {credits: 500, energy: 200, alloys: 100}
+  units:
+    - type: "Technician"
+      position: {x: 350, y: 300}
+      count: 1
+    - type: "Trooper"
+      position: {x: 320, y: 250}
+      count: 2
+  buildings:
+    - type: "CommandNexus"
+      position: {x: 300, y: 200}
+      completed: true
+
+enemy_start: null
+
+victory_conditions:
+  - type: "build_structure"
+    target: "SolarArray"
+  - type: "train_units"
+    count: 3
+
+defeat_conditions:
+  - type: "lose_all"
+
+restrictions:
+  can_build: true
+  can_produce: true
+
+briefing:
+  title: "Establish Base"
+  objectives:
+    - "Build a Solar Array using your Technician"
+    - "Train 3 units from your Command Nexus"
+  background: "Time to establish your presence! Use your Technician to construct buildings - select them and click the building icons in the command panel. Buildings require resources, so make sure to build power-generating structures first."
+
+difficulty: "easy"

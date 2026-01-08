@@ -1,0 +1,34 @@
+id: "tutorial_01"
+name: "Boot Camp"
+description: "Learn the basics of unit selection and movement."
+map: "maps/default.yaml"
+
+player_start:
+  position: {x: 300, y: 200}
+  resources: {credits: 0, energy: 0, alloys: 0}
+  units:
+    - type: "Trooper"
+      position: {x: 320, y: 250}
+      count: 3
+
+enemy_start: null
+
+victory_conditions:
+  - type: "reach_zone_all"
+    zone: {x: 600, y: 400, width: 100, height: 100}
+
+defeat_conditions:
+  - type: "lose_all_units"
+
+restrictions:
+  can_build: false
+  can_produce: false
+
+briefing:
+  title: "Boot Camp"
+  objectives:
+    - "Select your troopers by clicking or dragging"
+    - "Move all troopers to the green target zone"
+  background: "Welcome, Commander! Your first task is simple - learn how to command your troops. Click on units to select them, or drag a box to select multiple units. Right-click to move them to a destination."
+
+difficulty: "easy"

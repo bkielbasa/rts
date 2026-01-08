@@ -497,7 +497,7 @@ var BuildingDefs = map[BuildingType]*BuildingDef{
 		Type:        BuildingBarracks,
 		Name:        "Barracks",
 		Description: "Trains infantry units",
-		Size:        50,
+		Size:        128,
 		Color:       color.RGBA{120, 100, 80, 255},
 		Cost: map[resource.Type]float64{
 			resource.Credits: 500,

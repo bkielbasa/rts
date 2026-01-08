@@ -317,6 +317,47 @@ func (cp *CommandPanel) Update(mousePos emath.Vec2, leftClicked bool) *entity.Bu
 	}
 	return clickedDef
 }
+
+func (cp *CommandPanel) GetHoveredBuilding(mousePos emath.Vec2) *entity.BuildingDef {
+	if !cp.visible {
+		return nil
+	}
+	for _, btn := range cp.buttons {
+		if btn.Contains(mousePos) {
+			return btn.BuildingDef
+		}
+	}
+	return nil
+}
+
+func (cp *CommandPanel) GetHoveredUnit(mousePos emath.Vec2) *entity.UnitDef {
+	if !cp.visible {
+		return nil
+	}
+	for _, btn := range cp.unitButtons {
+		if btn.Contains(mousePos) {
+			return btn.UnitDef
+		}
+	}
+	return nil
+}
+
+func (cp *CommandPanel) GetHoveredButtonBounds(mousePos emath.Vec2) *emath.Rect {
+	if !cp.visible {
+		return nil
+	}
+	for _, btn := range cp.buttons {
+		if btn.Contains(mousePos) {
+			return &btn.Bounds
+		}
+	}
+	for _, btn := range cp.unitButtons {
+		if btn.Contains(mousePos) {
+			return &btn.Bounds
+		}
+	}
+	return nil
+}
 func (cp *CommandPanel) UpdateUnit(mousePos emath.Vec2, leftClicked bool) *entity.UnitDef {
 	if !cp.visible {
 		return nil

@@ -49,7 +49,7 @@ func NewEnemyAI(baseX, baseY float64) *EnemyAI {
 		Resources:     resources,
 		BasePosition:  emath.Vec2{X: baseX, Y: baseY},
 		rallyPoint:    emath.Vec2{X: baseX - 100, Y: baseY},
-		minArmySize:   3,
+		minArmySize:   5,
 		maxArmySize:   10,
 		decisionTimer: 0,
 		attackTimer:   0,
@@ -118,7 +118,7 @@ func (ai *EnemyAI) makeDecision() {
 		return
 	}
 
-	if armySize >= ai.minArmySize && ai.attackTimer >= 30.0 {
+	if armySize >= ai.minArmySize && ai.attackTimer >= 60.0 {
 		ai.State = StateAttacking
 		return
 	}
@@ -132,7 +132,7 @@ func (ai *EnemyAI) makeDecision() {
 }
 
 func (ai *EnemyAI) detectThreatNearBase() bool {
-	threatRange := 300.0
+	threatRange := 200.0
 	for _, u := range ai.PlayerUnits {
 		dist := u.Center().Distance(ai.BasePosition)
 		if dist < threatRange {
@@ -230,7 +230,7 @@ func (ai *EnemyAI) updateProduction(dt float64) {
 			continue
 		}
 
-		if !b.Producing && len(b.ProductionQueue) == 0 && ai.produceTimer >= 5.0 {
+		if !b.Producing && len(b.ProductionQueue) == 0 && ai.produceTimer >= 8.0 {
 			if len(ai.Units) < ai.maxArmySize {
 				if rand.Float64() < 0.7 {
 					b.QueueProduction(entity.UnitDefs[entity.UnitTypeTank])
@@ -249,4 +249,43 @@ func (ai *EnemyAI) updateProduction(dt float64) {
 
 func (ai *EnemyAI) GetResources() *resource.Manager {
 	return ai.Resources
+}
+
+func (ai *EnemyAI) GetState() AIState {
+	return ai.State
+}
+
+func (ai *EnemyAI) GetBasePosition() emath.Vec2 {
+	return ai.BasePosition
+}
+
+func (ai *EnemyAI) GetRallyPoint() emath.Vec2 {
+	return ai.rallyPoint
+}
+
+func (ai *EnemyAI) GetTimers() (decision, attack, produce float64) {
+	return ai.decisionTimer, ai.attackTimer, ai.produceTimer
+}
+
+func (ai *EnemyAI) GetArmySizes() (min, max int) {
+	return ai.minArmySize, ai.maxArmySize
+}
+
+func (ai *EnemyAI) SetState(state AIState) {
+	ai.State = state
+}
+
+func (ai *EnemyAI) SetTimers(decision, attack, produce float64) {
+	ai.decisionTimer = decision
+	ai.attackTimer = attack
+	ai.produceTimer = produce
+}
+
+func (ai *EnemyAI) SetRallyPoint(point emath.Vec2) {
+	ai.rallyPoint = point
+}
+
+func (ai *EnemyAI) SetArmySizes(min, max int) {
+	ai.minArmySize = min
+	ai.maxArmySize = max
 }

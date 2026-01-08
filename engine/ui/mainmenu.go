@@ -13,7 +13,9 @@ import (
 type MenuOption int
 
 const (
-	MenuOptionStartGame MenuOption = iota
+	MenuOptionCampaign MenuOption = iota
+	MenuOptionSkirmish
+	MenuOptionLoadGame
 	MenuOptionExit
 	MenuOptionCount
 )
@@ -34,8 +36,8 @@ func NewMainMenu() *MainMenu {
 	return &MainMenu{
 		screenWidth:  1280,
 		screenHeight: 720,
-		selected:     MenuOptionStartGame,
-		options:      []string{"Start Game", "Exit"},
+		selected:     MenuOptionCampaign,
+		options:      []string{"Campaign", "Skirmish", "Load Game", "Exit"},
 	}
 }
 func (m *MainMenu) UpdateSize(width, height float64) {
