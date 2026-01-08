@@ -8,7 +8,7 @@ permissions:
   contents: write
 
 jobs:
-  build:
+  build-linux-windows:
     name: Build ${{ matrix.os }}-${{ matrix.arch }}
     runs-on: ubuntu-latest
     strategy:
@@ -21,12 +21,6 @@ jobs:
             arch: amd64
             ext: ""
           - os: linux
-            arch: arm64
-            ext: ""
-          - os: darwin
-            arch: amd64
-            ext: ""
-          - os: darwin
             arch: arm64
             ext: ""
 
@@ -60,5 +54,46 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: tanks-${{ matrix.os }}-${{ matrix.arch }}-${{ github.ref_name }}.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-macos:
+    name: Build darwin-${{ matrix.arch }}
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        include:
+          - arch: amd64
+          - arch: arm64
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.21"
+
+      - name: Build binary
+        env:
+          GOOS: darwin
+          GOARCH: ${{ matrix.arch }}
+        run: |
+          go build -ldflags "-s -w" -o tanks ./cmd/game
+
+      - name: Create distribution package
+        run: |
+          DIST_NAME="tanks-darwin-${{ matrix.arch }}-${{ github.ref_name }}"
+          mkdir -p "$DIST_NAME"
+          cp tanks "$DIST_NAME/"
+          cp -r assets "$DIST_NAME/"
+          cp -r maps "$DIST_NAME/"
+          zip -r "$DIST_NAME.zip" "$DIST_NAME"
+
+      - name: Upload release asset
+        uses: softprops/action-gh-release@v1
+        with:
+          files: tanks-darwin-${{ matrix.arch }}-${{ github.ref_name }}.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
