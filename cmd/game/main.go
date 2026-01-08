@@ -1299,7 +1299,7 @@ func (g *Game) drawRotatedRectOutline(screen *ebiten.Image, center emath.Vec2, w
 	}
 
 	// Draw lines between corners
-	for i := 0; i < 4; i++ {
+	for i := range 4 {
 		next := (i + 1) % 4
 		vector.StrokeLine(screen,
 			float32(rotated[i].X), float32(rotated[i].Y),

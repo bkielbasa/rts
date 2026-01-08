@@ -1,8 +1,9 @@
 package collision
 
 import (
-	emath "github.com/bklimczak/tanks/engine/math"
 	"math"
+
+	emath "github.com/bklimczak/tanks/engine/math"
 )
 
 type TerrainChecker interface {
@@ -30,21 +31,7 @@ func (s *System) SetTerrain(t TerrainChecker) {
 func (s *System) CheckCollision(a, b emath.Rect) bool {
 	return a.Intersects(b)
 }
-func (s *System) isPositionValid(bounds emath.Rect) bool {
-	if bounds.Pos.X < s.worldBounds.Pos.X || bounds.Pos.Y < s.worldBounds.Pos.Y {
-		return false
-	}
-	if bounds.Pos.X+bounds.Size.X > s.worldBounds.Pos.X+s.worldBounds.Size.X {
-		return false
-	}
-	if bounds.Pos.Y+bounds.Size.Y > s.worldBounds.Pos.Y+s.worldBounds.Size.Y {
-		return false
-	}
-	if s.terrain != nil && !s.terrain.IsPassable(bounds) {
-		return false
-	}
-	return true
-}
+
 func (s *System) ResolveMovement(mover emath.Rect, desiredPos emath.Vec2, obstacles []emath.Rect) emath.Vec2 {
 	newBounds := emath.Rect{Pos: desiredPos, Size: mover.Size}
 	desiredPos = s.clampToWorld(desiredPos, mover.Size)

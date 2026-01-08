@@ -1,13 +1,14 @@
 package ui
 
 import (
+	"image/color"
+
 	"github.com/bklimczak/tanks/engine/camera"
 	"github.com/bklimczak/tanks/engine/fog"
 	emath "github.com/bklimczak/tanks/engine/math"
 	"github.com/bklimczak/tanks/engine/terrain"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/vector"
-	"image/color"
 )
 
 type MinimapEntity struct {
@@ -16,13 +17,11 @@ type MinimapEntity struct {
 	Color    color.Color
 }
 type Minimap struct {
-	bounds         emath.Rect
-	worldSize      emath.Vec2
-	borderColor    color.Color
-	bgColor        color.Color
-	terrainCache   *ebiten.Image
-	fogCache       *ebiten.Image
-	lastFogVersion int
+	bounds       emath.Rect
+	worldSize    emath.Vec2
+	borderColor  color.Color
+	bgColor      color.Color
+	terrainCache *ebiten.Image
 }
 
 func NewMinimap(x, y, width, height float64) *Minimap {
@@ -220,7 +219,7 @@ func (m *Minimap) drawTerrainWithFog(screen *ebiten.Image, terrainMap *terrain.M
 				fogColor = color.RGBA{0, 0, 0, 153} // 60% dark for explored
 			}
 
-			vector.DrawFilledRect(
+			vector.FillRect(
 				screen,
 				float32(screenX),
 				float32(screenY),
