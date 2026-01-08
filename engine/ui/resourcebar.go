@@ -11,13 +11,15 @@ import (
 )
 
 var (
-	MetalColor  = color.RGBA{100, 100, 120, 255}
-	EnergyColor = color.RGBA{255, 220, 50, 255}
+	CreditsColor = color.RGBA{220, 180, 80, 255}
+	EnergyColor  = color.RGBA{80, 180, 255, 255}
+	AlloysColor  = color.RGBA{180, 100, 220, 255}
 )
 
 type ResourceDisplay struct {
 	resourceType resource.Type
 	label        string
+	symbol       string
 	barColor     color.Color
 	bounds       emath.Rect
 	barHeight    float64
@@ -30,32 +32,45 @@ func NewResourceDisplay(t resource.Type, x, y, width float64) *ResourceDisplay {
 		barHeight:    8,
 	}
 	switch t {
-	case resource.Metal:
-		rd.label = "METAL"
-		rd.barColor = MetalColor
+	case resource.Credits:
+		rd.label = "CREDITS"
+		rd.symbol = "Ȼ"
+		rd.barColor = CreditsColor
 	case resource.Energy:
 		rd.label = "ENERGY"
+		rd.symbol = "⚡"
 		rd.barColor = EnergyColor
+	case resource.Alloys:
+		rd.label = "ALLOYS"
+		rd.symbol = "◆"
+		rd.barColor = AlloysColor
 	}
 	return rd
 }
+
 func (rd *ResourceDisplay) Draw(screen *ebiten.Image, res *resource.Resource) {
 	rd.DrawWithDrain(screen, res, 0)
 }
+
 func (rd *ResourceDisplay) DrawWithDrain(screen *ebiten.Image, res *resource.Resource, drainPerSecond float64) {
 	x := rd.bounds.Pos.X
 	y := rd.bounds.Pos.Y
 	w := rd.bounds.Size.X
+
 	ebitenutil.DebugPrintAt(screen, rd.label, int(x), int(y))
+
 	barY := y + 14
 	barWidth := w - 10
+
 	vector.FillRect(screen, float32(x), float32(barY), float32(barWidth), float32(rd.barHeight), BarBackgroundColor, false)
 	fillWidth := barWidth * res.Ratio()
 	vector.FillRect(screen, float32(x), float32(barY), float32(fillWidth), float32(rd.barHeight), rd.barColor, false)
 	vector.StrokeRect(screen, float32(x), float32(barY), float32(barWidth), float32(rd.barHeight), 1, BorderColor, false)
+
 	statsY := int(barY + rd.barHeight + 4)
 	currentStr := fmt.Sprintf("%.0f / %.0f", res.Current, res.Capacity)
 	ebitenutil.DebugPrintAt(screen, currentStr, int(x), statsY)
+
 	netFlow := res.NetFlow() - drainPerSecond
 	flowStr := ""
 	if netFlow >= 0 {
@@ -63,16 +78,19 @@ func (rd *ResourceDisplay) DrawWithDrain(screen *ebiten.Image, res *resource.Res
 	} else {
 		flowStr = fmt.Sprintf("%.1f", netFlow)
 	}
+
 	var flowDetailStr string
 	if drainPerSecond > 0 {
-		flowDetailStr = fmt.Sprintf("(+%.1f / -%.1f / B:%.1f)", res.Production, res.Consumption, drainPerSecond)
+		flowDetailStr = fmt.Sprintf("(+%.1f/-%.1f/B:%.1f)", res.Production, res.Consumption, drainPerSecond)
 	} else {
-		flowDetailStr = fmt.Sprintf("(+%.1f / -%.1f)", res.Production, res.Consumption)
+		flowDetailStr = fmt.Sprintf("(+%.1f/-%.1f)", res.Production, res.Consumption)
 	}
-	flowX := int(x + w - 100)
+
+	flowX := int(x + w - 90)
 	ebitenutil.DebugPrintAt(screen, flowStr, flowX, statsY)
-	ebitenutil.DebugPrintAt(screen, flowDetailStr, flowX-80, int(y))
+	ebitenutil.DebugPrintAt(screen, flowDetailStr, flowX-70, int(y))
 }
+
 func (rd *ResourceDisplay) Width() float64 {
 	return rd.bounds.Size.X
 }
@@ -89,19 +107,26 @@ func NewResourceBar(screenWidth float64) *ResourceBar {
 		panel:  NewPanel(0, 0, screenWidth, height),
 		height: height,
 	}
-	displayWidth := 200.0
+
+	displayWidth := 180.0
 	startX := 10.0
-	spacing := 20.0
-	rb.displays = append(rb.displays, NewResourceDisplay(resource.Metal, startX, 5, displayWidth))
+	spacing := 15.0
+
+	rb.displays = append(rb.displays, NewResourceDisplay(resource.Credits, startX, 5, displayWidth))
 	rb.displays = append(rb.displays, NewResourceDisplay(resource.Energy, startX+displayWidth+spacing, 5, displayWidth))
+	rb.displays = append(rb.displays, NewResourceDisplay(resource.Alloys, startX+2*(displayWidth+spacing), 5, displayWidth))
+
 	return rb
 }
+
 func (rb *ResourceBar) Height() float64 {
 	return rb.height
 }
+
 func (rb *ResourceBar) UpdateWidth(screenWidth float64) {
 	rb.panel.Bounds.Size.X = screenWidth
 }
+
 func (rb *ResourceBar) Draw(screen *ebiten.Image, resources *resource.Manager) {
 	rb.panel.Draw(screen)
 	const tickRate = 1.0 / 60.0

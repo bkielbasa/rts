@@ -121,39 +121,92 @@ func NewGame() *Game {
 		state:             StateMenu,
 	}
 	g.engine.Collision.SetTerrain(terrainMap)
+
+	// === PLAYER BASE SETUP ===
 	startX, startY := g.findPassablePosition(300, 200)
-	g.units = append(g.units, entity.NewConstructor(g.nextUnitID, startX, startY, entity.FactionPlayer))
+
+	// Create Command Nexus (starting building)
+	nexusDef := entity.BuildingDefs[entity.BuildingCommandNexus]
+	commandNexus := entity.NewBuilding(g.nextBuildingID, startX, startY, nexusDef)
+	commandNexus.Faction = entity.FactionPlayer
+	commandNexus.Completed = true
+	commandNexus.BuildProgress = 1.0
+	g.buildings = append(g.buildings, commandNexus)
+	g.nextBuildingID++
+	g.applyBuildingEffects(nexusDef)
+
+	// Create starting Solar Array for power
+	solarDef := entity.BuildingDefs[entity.BuildingSolarArray]
+	solarX, solarY := g.findPassablePosition(startX+nexusDef.Size+20, startY)
+	solarArray := entity.NewBuilding(g.nextBuildingID, solarX, solarY, solarDef)
+	solarArray.Faction = entity.FactionPlayer
+	solarArray.Completed = true
+	solarArray.BuildProgress = 1.0
+	g.buildings = append(g.buildings, solarArray)
+	g.nextBuildingID++
+	g.applyBuildingEffects(solarDef)
+
+	// Create starting Technician (constructor unit)
+	techDef := entity.UnitDefs[entity.UnitTypeTechnician]
+	techX, techY := g.findPassablePosition(startX+nexusDef.Size/2, startY+nexusDef.Size+20)
+	technician := entity.NewUnitFromDef(g.nextUnitID, techX, techY, techDef, entity.FactionPlayer)
+	g.units = append(g.units, technician)
 	g.nextUnitID++
+
+	// Create starting Troopers
 	for i := 0; i < 3; i++ {
-		x, y := g.findPassablePosition(startX+float64(i+1)*40, startY+50)
-		g.units = append(g.units, entity.NewTank(g.nextUnitID, x, y, entity.FactionPlayer))
+		trooperDef := entity.UnitDefs[entity.UnitTypeTrooper]
+		tx, ty := g.findPassablePosition(startX+float64(i)*25, startY+nexusDef.Size+60)
+		trooper := entity.NewUnitFromDef(g.nextUnitID, tx, ty, trooperDef, entity.FactionPlayer)
+		g.units = append(g.units, trooper)
 		g.nextUnitID++
 	}
-	x, y := g.findPassablePosition(startX+160, startY+50)
-	g.units = append(g.units, entity.NewScout(g.nextUnitID, x, y, entity.FactionPlayer))
+
+	// Create starting Recon Skimmer
+	skimmerDef := entity.UnitDefs[entity.UnitTypeReconSkimmer]
+	skimmerX, skimmerY := g.findPassablePosition(startX+100, startY+nexusDef.Size+60)
+	skimmer := entity.NewUnitFromDef(g.nextUnitID, skimmerX, skimmerY, skimmerDef, entity.FactionPlayer)
+	g.units = append(g.units, skimmer)
 	g.nextUnitID++
-	// Enemy base position
+
+	// === ENEMY BASE SETUP ===
 	enemyBaseX, enemyBaseY := 3500.0, 2700.0
 	g.enemyAI = ai.NewEnemyAI(enemyBaseX, enemyBaseY)
 
-	// Create enemy tank factory
-	factoryX, factoryY := g.findPassablePosition(enemyBaseX, enemyBaseY)
-	enemyFactory := entity.NewBuilding(g.nextBuildingID, factoryX, factoryY, entity.BuildingDefs[entity.BuildingTankFactory])
-	enemyFactory.Faction = entity.FactionEnemy
-	enemyFactory.Color = entity.GetFactionTintedColor(enemyFactory.Def.Color, entity.FactionEnemy)
-	enemyFactory.Completed = true
-	enemyFactory.BuildProgress = 1.0
-	g.buildings = append(g.buildings, enemyFactory)
+	// Create enemy Command Nexus
+	enemyNexusX, enemyNexusY := g.findPassablePosition(enemyBaseX, enemyBaseY)
+	enemyNexus := entity.NewBuilding(g.nextBuildingID, enemyNexusX, enemyNexusY, nexusDef)
+	enemyNexus.Faction = entity.FactionEnemy
+	enemyNexus.Color = entity.GetFactionTintedColor(nexusDef.Color, entity.FactionEnemy)
+	enemyNexus.Completed = true
+	enemyNexus.BuildProgress = 1.0
+	g.buildings = append(g.buildings, enemyNexus)
 	g.nextBuildingID++
 
-	// Create initial enemy units
-	for i := 0; i < 3; i++ {
-		ex, ey := g.findPassablePosition(enemyBaseX-100+float64(i)*40, enemyBaseY+80)
-		g.units = append(g.units, entity.NewTank(g.nextUnitID, ex, ey, entity.FactionEnemy))
+	// Create enemy Hover Bay
+	hoverBayDef := entity.BuildingDefs[entity.BuildingHoverBay]
+	hoverBayX, hoverBayY := g.findPassablePosition(enemyBaseX+nexusDef.Size+20, enemyBaseY)
+	enemyHoverBay := entity.NewBuilding(g.nextBuildingID, hoverBayX, hoverBayY, hoverBayDef)
+	enemyHoverBay.Faction = entity.FactionEnemy
+	enemyHoverBay.Color = entity.GetFactionTintedColor(hoverBayDef.Color, entity.FactionEnemy)
+	enemyHoverBay.Completed = true
+	enemyHoverBay.BuildProgress = 1.0
+	g.buildings = append(g.buildings, enemyHoverBay)
+	g.nextBuildingID++
+
+	// Create initial enemy units - Strikers
+	for i := 0; i < 2; i++ {
+		strikerDef := entity.UnitDefs[entity.UnitTypeStriker]
+		ex, ey := g.findPassablePosition(enemyBaseX-50+float64(i)*40, enemyBaseY+nexusDef.Size+40)
+		striker := entity.NewUnitFromDef(g.nextUnitID, ex, ey, strikerDef, entity.FactionEnemy)
+		g.units = append(g.units, striker)
 		g.nextUnitID++
 	}
-	ex, ey := g.findPassablePosition(enemyBaseX-50, enemyBaseY+120)
-	g.units = append(g.units, entity.NewScout(g.nextUnitID, ex, ey, entity.FactionEnemy))
+
+	// Create enemy Recon Skimmer
+	enemySkimmerX, enemySkimmerY := g.findPassablePosition(enemyBaseX+50, enemyBaseY+nexusDef.Size+80)
+	enemySkimmer := entity.NewUnitFromDef(g.nextUnitID, enemySkimmerX, enemySkimmerY, skimmerDef, entity.FactionEnemy)
+	g.units = append(g.units, enemySkimmer)
 	g.nextUnitID++
 
 	return g
@@ -725,7 +778,7 @@ func (g *Game) updateRepairTask(u *entity.Unit) {
 
 	// Check if we have enough resources
 	resources := g.engine.Resources
-	metalRes := resources.Get(resource.Metal)
+	metalRes := resources.Get(resource.Credits)
 	energyRes := resources.Get(resource.Energy)
 	if metalRes.Current < metalCost || energyRes.Current < energyCost {
 		return // Not enough resources - wait
@@ -744,23 +797,32 @@ func (g *Game) updateRepairTask(u *entity.Unit) {
 }
 func (g *Game) applyBuildingEffects(def *entity.BuildingDef) {
 	resources := g.engine.Resources
-	if def.MetalProduction > 0 {
-		resources.AddProduction(resource.Metal, def.MetalProduction)
+	if def.CreditsProduction > 0 {
+		resources.AddProduction(resource.Credits, def.CreditsProduction)
 	}
 	if def.EnergyProduction > 0 {
 		resources.AddProduction(resource.Energy, def.EnergyProduction)
 	}
-	if def.MetalConsumption > 0 {
-		resources.AddConsumption(resource.Metal, def.MetalConsumption)
+	if def.AlloysProduction > 0 {
+		resources.AddProduction(resource.Alloys, def.AlloysProduction)
+	}
+	if def.CreditsConsumption > 0 {
+		resources.AddConsumption(resource.Credits, def.CreditsConsumption)
 	}
 	if def.EnergyConsumption > 0 {
 		resources.AddConsumption(resource.Energy, def.EnergyConsumption)
 	}
-	if def.MetalStorage > 0 {
-		resources.AddCapacity(resource.Metal, def.MetalStorage)
+	if def.AlloysConsumption > 0 {
+		resources.AddConsumption(resource.Alloys, def.AlloysConsumption)
+	}
+	if def.CreditsStorage > 0 {
+		resources.AddCapacity(resource.Credits, def.CreditsStorage)
 	}
 	if def.EnergyStorage > 0 {
 		resources.AddCapacity(resource.Energy, def.EnergyStorage)
+	}
+	if def.AlloysStorage > 0 {
+		resources.AddCapacity(resource.Alloys, def.AlloysStorage)
 	}
 }
 func (g *Game) updateBuildings() {

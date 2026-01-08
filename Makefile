@@ -2,13 +2,15 @@
 
 BINARY_NAME=tanks
 BUILD_DIR=build
+DIST_DIR=dist
 CMD_GAME=./cmd/game
 CMD_GENMAP=./cmd/genmap
+VERSION?=1.0.0
 
 # Go build flags
 LDFLAGS=-s -w
 
-.PHONY: all build build-mac build-linux build-windows build-all clean run genmap
+.PHONY: all build build-mac build-linux build-windows build-all clean run genmap dist-windows
 
 # Default target
 all: build
@@ -34,6 +36,17 @@ build-windows:
 # Build for all platforms
 build-all: build-mac build-linux build-windows
 
+# Create Windows distribution ZIP with binary and assets
+dist-windows: build-windows
+	@echo "Creating Windows distribution..."
+	@mkdir -p $(DIST_DIR)/$(BINARY_NAME)-windows-$(VERSION)
+	@cp $(BUILD_DIR)/$(BINARY_NAME)-windows-amd64.exe $(DIST_DIR)/$(BINARY_NAME)-windows-$(VERSION)/$(BINARY_NAME).exe
+	@cp -r assets $(DIST_DIR)/$(BINARY_NAME)-windows-$(VERSION)/
+	@cp -r maps $(DIST_DIR)/$(BINARY_NAME)-windows-$(VERSION)/
+	@cd $(DIST_DIR) && zip -r $(BINARY_NAME)-windows-$(VERSION).zip $(BINARY_NAME)-windows-$(VERSION)
+	@rm -rf $(DIST_DIR)/$(BINARY_NAME)-windows-$(VERSION)
+	@echo "Created: $(DIST_DIR)/$(BINARY_NAME)-windows-$(VERSION).zip"
+
 # Run the game
 run:
 	go run $(CMD_GAME)
@@ -49,4 +62,5 @@ build-genmap:
 # Clean build artifacts
 clean:
 	rm -rf $(BUILD_DIR)
+	rm -rf $(DIST_DIR)
 	go clean

@@ -106,11 +106,14 @@ func (b *UnitButton) Draw(screen *ebiten.Image, resources *resource.Manager) {
 	ebitenutil.DebugPrintAt(screen, b.Label, labelX, labelY)
 	costY := int(y + 22)
 	costStr := ""
-	if metalCost, ok := b.UnitDef.Cost[resource.Metal]; ok && metalCost > 0 {
-		costStr += fmt.Sprintf("M:%.0f ", metalCost)
+	if credits, ok := b.UnitDef.Cost[resource.Credits]; ok && credits > 0 {
+		costStr += fmt.Sprintf("C:%.0f ", credits)
 	}
-	if energyCost, ok := b.UnitDef.Cost[resource.Energy]; ok && energyCost > 0 {
-		costStr += fmt.Sprintf("E:%.0f", energyCost)
+	if energy, ok := b.UnitDef.Cost[resource.Energy]; ok && energy > 0 {
+		costStr += fmt.Sprintf("E:%.0f ", energy)
+	}
+	if alloys, ok := b.UnitDef.Cost[resource.Alloys]; ok && alloys > 0 {
+		costStr += fmt.Sprintf("A:%.0f", alloys)
 	}
 	ebitenutil.DebugPrintAt(screen, costStr, labelX, costY)
 	timeStr := fmt.Sprintf("%.0fs", b.UnitDef.BuildTime)
@@ -167,11 +170,14 @@ func (b *CommandButton) Draw(screen *ebiten.Image, resources *resource.Manager) 
 	ebitenutil.DebugPrintAt(screen, b.Label, labelX, labelY)
 	costY := int(y + 22)
 	costStr := ""
-	if metalCost, ok := b.BuildingDef.Cost[resource.Metal]; ok && metalCost > 0 {
-		costStr += fmt.Sprintf("M:%.0f ", metalCost)
+	if credits, ok := b.BuildingDef.Cost[resource.Credits]; ok && credits > 0 {
+		costStr += fmt.Sprintf("C:%.0f ", credits)
 	}
-	if energyCost, ok := b.BuildingDef.Cost[resource.Energy]; ok && energyCost > 0 {
-		costStr += fmt.Sprintf("E:%.0f", energyCost)
+	if energy, ok := b.BuildingDef.Cost[resource.Energy]; ok && energy > 0 {
+		costStr += fmt.Sprintf("E:%.0f ", energy)
+	}
+	if alloys, ok := b.BuildingDef.Cost[resource.Alloys]; ok && alloys > 0 {
+		costStr += fmt.Sprintf("A:%.0f", alloys)
 	}
 	ebitenutil.DebugPrintAt(screen, costStr, labelX, costY)
 	timeStr := fmt.Sprintf("%.0fs", b.BuildingDef.BuildTime)

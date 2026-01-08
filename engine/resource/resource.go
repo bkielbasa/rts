@@ -3,19 +3,35 @@ package resource
 type Type int
 
 const (
-	Metal Type = iota
+	Credits Type = iota
 	Energy
+	Alloys
 	NumTypes
 )
 
 func (t Type) String() string {
 	switch t {
-	case Metal:
-		return "Metal"
+	case Credits:
+		return "Credits"
 	case Energy:
 		return "Energy"
+	case Alloys:
+		return "Alloys"
 	default:
 		return "Unknown"
+	}
+}
+
+func (t Type) Symbol() string {
+	switch t {
+	case Credits:
+		return "Ȼ"
+	case Energy:
+		return "⚡"
+	case Alloys:
+		return "◆"
+	default:
+		return "?"
 	}
 }
 
@@ -79,16 +95,22 @@ type Manager struct {
 
 func NewManager() *Manager {
 	m := &Manager{}
-	m.resources[Metal] = &Resource{
+	m.resources[Credits] = &Resource{
 		Current:     1000,
-		Capacity:    1000,
-		Production:  102,
+		Capacity:    2000,
+		Production:  0,
 		Consumption: 0,
 	}
 	m.resources[Energy] = &Resource{
-		Current:     2000,
-		Capacity:    2000,
-		Production:  110,
+		Current:     100,
+		Capacity:    200,
+		Production:  0,
+		Consumption: 0,
+	}
+	m.resources[Alloys] = &Resource{
+		Current:     0,
+		Capacity:    500,
+		Production:  0,
 		Consumption: 0,
 	}
 	return m

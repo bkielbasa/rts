@@ -1,0 +1,64 @@
+name: Release
+
+on:
+  release:
+    types: [created]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.os }}-${{ matrix.arch }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - os: windows
+            arch: amd64
+            ext: .exe
+          - os: linux
+            arch: amd64
+            ext: ""
+          - os: linux
+            arch: arm64
+            ext: ""
+          - os: darwin
+            arch: amd64
+            ext: ""
+          - os: darwin
+            arch: arm64
+            ext: ""
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.21"
+
+      - name: Build binary
+        env:
+          GOOS: ${{ matrix.os }}
+          GOARCH: ${{ matrix.arch }}
+          CGO_ENABLED: 0
+        run: |
+          go build -ldflags "-s -w" -o tanks${{ matrix.ext }} ./cmd/game
+
+      - name: Create distribution package
+        run: |
+          DIST_NAME="tanks-${{ matrix.os }}-${{ matrix.arch }}-${{ github.ref_name }}"
+          mkdir -p "$DIST_NAME"
+          cp tanks${{ matrix.ext }} "$DIST_NAME/"
+          cp -r assets "$DIST_NAME/"
+          cp -r maps "$DIST_NAME/"
+          zip -r "$DIST_NAME.zip" "$DIST_NAME"
+
+      - name: Upload release asset
+        uses: softprops/action-gh-release@v1
+        with:
+          files: tanks-${{ matrix.os }}-${{ matrix.arch }}-${{ github.ref_name }}.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
