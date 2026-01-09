@@ -89,7 +89,7 @@ func (er *EntityRenderer) drawUnitFallback(screen *ebiten.Image, u *entity.Unit,
 	er.renderer.DrawLine(screen, emath.Vec2{X: baseX2, Y: baseY2}, emath.Vec2{X: tipX, Y: tipY}, 2, arrowColor)
 	er.renderer.DrawLine(screen, emath.Vec2{X: baseX1, Y: baseY1}, emath.Vec2{X: baseX2, Y: baseY2}, 2, arrowColor)
 
-	if u.Type == entity.UnitTypeConstructor || u.Type == entity.UnitTypeTechnician {
+	if u.Type == entity.UnitTypeConstructor {
 		plusOffset := arrowLength * 0.3
 		plusX := screenCenter.X - math.Cos(u.Angle)*plusOffset
 		plusY := screenCenter.Y - math.Sin(u.Angle)*plusOffset

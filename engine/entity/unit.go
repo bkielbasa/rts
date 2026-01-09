@@ -79,7 +79,7 @@ func NewUnitFromDef(id uint64, x, y float64, def *UnitDef, faction Faction) *Uni
 		Entity: Entity{
 			ID:       id,
 			Position: emath.NewVec2(x, y),
-			Size:     emath.NewVec2(def.Size, def.Size),
+			Size:     emath.NewVec2(def.GetWidth(), def.GetHeight()),
 			Color:    GetFactionTintedColor(def.Color, faction),
 			Active:   true,
 			Faction:  faction,

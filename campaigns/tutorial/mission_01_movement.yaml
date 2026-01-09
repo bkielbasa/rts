@@ -7,23 +7,14 @@ player_start:
   position: {x: 300, y: 200}
   resources: {credits: 1000, energy: 500, alloys: 0}
   units:
-    - type: "Trooper"
-      position: {x: 320, y: 250}
-      count: 3
     - type: "Tank"
       position: {x: 500, y: 400}
-      count: 1
-    - type: "Tank2"
-      position: {x: 650, y: 400}
-      count: 1
-    - type: "Tank4"
-      position: {x: 800, y: 400}
-      count: 1
-    - type: "Tank5"
-      position: {x: 950, y: 400}
-      count: 1
-    - type: "Tank7"
-      position: {x: 500, y: 550}
+      count: 3
+    - type: "Scout"
+      position: {x: 600, y: 400}
+      count: 2
+    - type: "Constructor"
+      position: {x: 400, y: 400}
       count: 1
   buildings:
     - type: "SolarArray"
@@ -67,8 +58,8 @@ restrictions:
 briefing:
   title: "Boot Camp"
   objectives:
-    - "Select your troopers by clicking or dragging"
-    - "Move all troopers to the green target zone"
+    - "Select your units by clicking or dragging"
+    - "Move all units to the green target zone"
   background: "Welcome, Commander! Your first task is simple - learn how to command your troops. Click on units to select them, or drag a box to select multiple units. Right-click to move them to a destination."
 
 difficulty: "easy"

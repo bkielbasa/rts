@@ -123,40 +123,12 @@ func LoadMission(path string) (*Mission, error) {
 
 func (m *Mission) GetUnitType(typeName string) entity.UnitType {
 	switch typeName {
-	case "Trooper":
-		return entity.UnitTypeTrooper
-	case "RocketMarine":
-		return entity.UnitTypeRocketMarine
-	case "Technician":
-		return entity.UnitTypeTechnician
-	case "ReconSkimmer":
-		return entity.UnitTypeReconSkimmer
-	case "Striker":
-		return entity.UnitTypeStriker
-	case "CarrierAPC":
-		return entity.UnitTypeCarrierAPC
 	case "Tank":
 		return entity.UnitTypeTank
-	case "Tank2":
-		return entity.UnitTypeTank2
-	case "Tank3":
-		return entity.UnitTypeTank3
-	case "Tank4":
-		return entity.UnitTypeTank4
-	case "Tank5":
-		return entity.UnitTypeTank5
-	case "Tank6":
-		return entity.UnitTypeTank6
-	case "Tank7":
-		return entity.UnitTypeTank7
-	case "Tank8":
-		return entity.UnitTypeTank8
 	case "Scout":
 		return entity.UnitTypeScout
 	case "Constructor":
 		return entity.UnitTypeConstructor
-	case "MechConstructor":
-		return entity.UnitTypeMechConstructor
 	default:
 		return entity.UnitTypeBasic
 	}

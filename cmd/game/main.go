@@ -196,24 +196,24 @@ func (g *Game) setupPlayerBase() {
 	g.nextBuildingID++
 	g.applyBuildingEffects(solarDef)
 
-	techDef := entity.UnitDefs[entity.UnitTypeTechnician]
-	techX, techY := g.findPassablePosition(startX+nexusDef.Size/2, startY+nexusDef.Size+20)
-	technician := entity.NewUnitFromDef(g.nextUnitID, techX, techY, techDef, entity.FactionPlayer)
-	g.units = append(g.units, technician)
+	constructorDef := entity.UnitDefs[entity.UnitTypeConstructor]
+	constructorX, constructorY := g.findPassablePosition(startX+nexusDef.Size/2, startY+nexusDef.Size+20)
+	constructor := entity.NewUnitFromDef(g.nextUnitID, constructorX, constructorY, constructorDef, entity.FactionPlayer)
+	g.units = append(g.units, constructor)
 	g.nextUnitID++
 
-	for i := 0; i < 3; i++ {
-		trooperDef := entity.UnitDefs[entity.UnitTypeTrooper]
-		tx, ty := g.findPassablePosition(startX+float64(i)*25, startY+nexusDef.Size+60)
-		trooper := entity.NewUnitFromDef(g.nextUnitID, tx, ty, trooperDef, entity.FactionPlayer)
-		g.units = append(g.units, trooper)
+	tankDef := entity.UnitDefs[entity.UnitTypeTank]
+	for i := 0; i < 2; i++ {
+		tx, ty := g.findPassablePosition(startX+float64(i)*60, startY+nexusDef.Size+60)
+		tank := entity.NewUnitFromDef(g.nextUnitID, tx, ty, tankDef, entity.FactionPlayer)
+		g.units = append(g.units, tank)
 		g.nextUnitID++
 	}
 
-	skimmerDef := entity.UnitDefs[entity.UnitTypeReconSkimmer]
-	skimmerX, skimmerY := g.findPassablePosition(startX+100, startY+nexusDef.Size+60)
-	skimmer := entity.NewUnitFromDef(g.nextUnitID, skimmerX, skimmerY, skimmerDef, entity.FactionPlayer)
-	g.units = append(g.units, skimmer)
+	scoutDef := entity.UnitDefs[entity.UnitTypeScout]
+	scoutX, scoutY := g.findPassablePosition(startX+100, startY+nexusDef.Size+60)
+	scout := entity.NewUnitFromDef(g.nextUnitID, scoutX, scoutY, scoutDef, entity.FactionPlayer)
+	g.units = append(g.units, scout)
 	g.nextUnitID++
 }
 
@@ -241,18 +241,18 @@ func (g *Game) setupEnemyBase() {
 	g.buildings = append(g.buildings, enemyHoverBay)
 	g.nextBuildingID++
 
+	tankDef := entity.UnitDefs[entity.UnitTypeTank]
 	for i := 0; i < 2; i++ {
-		strikerDef := entity.UnitDefs[entity.UnitTypeStriker]
-		ex, ey := g.findPassablePosition(enemyBaseX-50+float64(i)*40, enemyBaseY+nexusDef.Size+40)
-		striker := entity.NewUnitFromDef(g.nextUnitID, ex, ey, strikerDef, entity.FactionEnemy)
-		g.units = append(g.units, striker)
+		ex, ey := g.findPassablePosition(enemyBaseX-50+float64(i)*60, enemyBaseY+nexusDef.Size+40)
+		tank := entity.NewUnitFromDef(g.nextUnitID, ex, ey, tankDef, entity.FactionEnemy)
+		g.units = append(g.units, tank)
 		g.nextUnitID++
 	}
 
-	skimmerDef := entity.UnitDefs[entity.UnitTypeReconSkimmer]
-	enemySkimmerX, enemySkimmerY := g.findPassablePosition(enemyBaseX+50, enemyBaseY+nexusDef.Size+80)
-	enemySkimmer := entity.NewUnitFromDef(g.nextUnitID, enemySkimmerX, enemySkimmerY, skimmerDef, entity.FactionEnemy)
-	g.units = append(g.units, enemySkimmer)
+	scoutDef := entity.UnitDefs[entity.UnitTypeScout]
+	enemyScoutX, enemyScoutY := g.findPassablePosition(enemyBaseX+50, enemyBaseY+nexusDef.Size+80)
+	enemyScout := entity.NewUnitFromDef(g.nextUnitID, enemyScoutX, enemyScoutY, scoutDef, entity.FactionEnemy)
+	g.units = append(g.units, enemyScout)
 	g.nextUnitID++
 }
 func (g *Game) findPassablePosition(x, y float64) (float64, float64) {
