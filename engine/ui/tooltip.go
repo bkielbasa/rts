@@ -186,15 +186,15 @@ func (t *Tooltip) getUnitLines() []string {
 
 	lines = append(lines, fmt.Sprintf("Health: %.0f  Speed: %.0f", def.Health, def.Speed))
 
-	if def.Damage > 0 {
-		lines = append(lines, fmt.Sprintf("Damage: %.0f  Range: %.0f", def.Damage, def.Range))
+	if def.CanAttack() {
+		lines = append(lines, fmt.Sprintf("Damage: %.0f  Range: %.0f", def.GetDamage(), def.GetRange()))
 	}
 
-	if def.CanConstruct {
+	if def.CanConstruct() {
 		lines = append(lines, "Can construct buildings")
 	}
 
-	if def.CanRepairUnits {
+	if def.CanRepairUnits() {
 		lines = append(lines, "Can repair units")
 	}
 

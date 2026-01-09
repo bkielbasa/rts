@@ -71,7 +71,7 @@ func NewUnitFromDef(id uint64, x, y float64, def *UnitDef, faction Faction) *Uni
 	if rotSpeed == 0 {
 		rotSpeed = RotationSpeedBasic
 	}
-	turretRotSpeed := def.TurretRotationSpeed
+	turretRotSpeed := def.GetTurretRotationSpeed()
 	if turretRotSpeed == 0 {
 		turretRotSpeed = rotSpeed * 2 // Default: turret rotates faster than body
 	}
@@ -91,21 +91,21 @@ func NewUnitFromDef(id uint64, x, y float64, def *UnitDef, faction Faction) *Uni
 		TurretRotationSpeed: turretRotSpeed,
 		Health:              def.Health,
 		MaxHealth:           def.Health,
-		Damage:              def.Damage,
-		Range:               def.Range,
-		FireRate:            def.FireRate,
+		Damage:              def.GetDamage(),
+		Range:               def.GetRange(),
+		FireRate:            def.GetFireRate(),
 		VisionRange:         def.VisionRange,
-		PursuitRange:        def.Range * 1.5, // Chase enemies 1.5x further than fire range
-		RepairRate:          def.RepairRate,
-		RepairRange:         def.RepairRange,
+		PursuitRange:        def.GetRange() * 1.5, // Chase enemies 1.5x further than fire range
+		RepairRate:          def.GetRepairRate(),
+		RepairRange:         def.GetRepairRange(),
 	}
 }
 func (u *Unit) CanBuild() bool {
-	return u.Def != nil && u.Def.CanConstruct
+	return u.Def != nil && u.Def.CanConstruct()
 }
 
 func (u *Unit) CanRepair() bool {
-	return u.Def != nil && u.Def.CanRepairUnits && u.RepairRate > 0 && u.RepairRange > 0
+	return u.Def != nil && u.Def.CanRepairUnits() && u.RepairRate > 0 && u.RepairRange > 0
 }
 func (u *Unit) IsInRepairRange(target *Unit) bool {
 	if target == nil {

@@ -34,7 +34,7 @@ func (er *EntityRenderer) DrawUnit(screen *ebiten.Image, u *entity.Unit, screenP
 	}
 
 	// Check if this unit has hull+gun sprites (tank-style rendering)
-	if def != nil && def.HullSpritePath != "" {
+	if def != nil && def.HasTurret() {
 		er.drawTank(screen, u, screenCenter, zoom)
 		return
 	}
@@ -113,11 +113,9 @@ func (er *EntityRenderer) drawTank(screen *ebiten.Image, u *entity.Unit, screenC
 
 	// Try to use sprites if available
 	var hullSprite, gunSprite *ebiten.Image
-	if def != nil && def.HullSpritePath != "" {
-		hullSprite = er.assets.GetSprite(def.HullSpritePath)
-	}
-	if def != nil && def.GunSpritePath != "" {
-		gunSprite = er.assets.GetSprite(def.GunSpritePath)
+	if def != nil && def.TankRender != nil {
+		hullSprite = er.assets.GetSprite(def.TankRender.HullSpritePath)
+		gunSprite = er.assets.GetSprite(def.TankRender.GunSpritePath)
 	}
 
 	if hullSprite != nil && gunSprite != nil {
@@ -163,8 +161,8 @@ func (er *EntityRenderer) drawTankWithSprites(screen *ebiten.Image, u *entity.Un
 	pivotX := 47.0
 	pivotY := 160.0
 	turretOffsetY := -30.0 // Base offset toward front of tank
-	if def != nil && def.TurretOffsetY != 0 {
-		turretOffsetY += def.TurretOffsetY
+	if def != nil && def.TankRender != nil && def.TankRender.TurretOffsetY != 0 {
+		turretOffsetY += def.TankRender.TurretOffsetY
 	}
 	turretOffsetY *= spriteScale // Apply scale
 

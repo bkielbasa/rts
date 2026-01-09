@@ -58,7 +58,31 @@ func (t UnitType) String() string {
 	}
 }
 
+// CombatDef contains combat-related stats for units that can attack
+type CombatDef struct {
+	Damage   float64
+	Range    float64
+	FireRate float64
+}
+
+// ConstructionDef contains construction/repair capabilities
+type ConstructionDef struct {
+	BuildableTypes []BuildingType
+	RepairRate     float64
+	RepairRange    float64
+	CanRepairUnits bool
+}
+
+// TankRenderDef contains tank-specific rendering with hull and turret
+type TankRenderDef struct {
+	HullSpritePath      string
+	GunSpritePath       string
+	TurretRotationSpeed float64
+	TurretOffsetY       float64
+}
+
 type UnitDef struct {
+	// Core - always present
 	Type        UnitType
 	Name        string
 	Description string
@@ -68,26 +92,97 @@ type UnitDef struct {
 	Cost        map[resource.Type]float64
 	BuildTime   float64
 	Health      float64
-	Damage      float64
-	Range       float64
-	FireRate    float64
 	VisionRange float64
-	RepairRate  float64
-	RepairRange float64
 
-	CanConstruct        bool
-	CanRepairUnits      bool
-	BuildableTypes      []BuildingType
-	RotationSpeed       float64
-	TurretRotationSpeed float64
-	IsHoverUnit         bool
-	IsInfantry          bool
+	// Movement
+	RotationSpeed float64
+	IsHoverUnit   bool
+	IsInfantry    bool
 
-	SpritePath     string
-	HullSpritePath string  // Hull/body sprite for tanks
-	GunSpritePath  string  // Gun/turret sprite for tanks
-	SpriteScale    float64 // Scale factor for sprites (0 or 1 = original size)
-	TurretOffsetY  float64 // Additional Y offset for turret positioning (in pixels, before scale)
+	// Optional capabilities - nil means unit doesn't have this capability
+	Combat       *CombatDef       // nil for non-combat units
+	Construction *ConstructionDef // nil for non-constructor units
+	TankRender   *TankRenderDef   // nil for non-tank units
+
+	// Simple sprite (used when TankRender is nil)
+	SpritePath  string
+	SpriteScale float64
+}
+
+// CanAttack returns true if unit can deal damage
+func (d *UnitDef) CanAttack() bool {
+	return d.Combat != nil && d.Combat.Damage > 0
+}
+
+// CanConstruct returns true if unit can build structures
+func (d *UnitDef) CanConstruct() bool {
+	return d.Construction != nil && len(d.Construction.BuildableTypes) > 0
+}
+
+// CanRepairUnits returns true if unit can repair other units
+func (d *UnitDef) CanRepairUnits() bool {
+	return d.Construction != nil && d.Construction.CanRepairUnits
+}
+
+// HasTurret returns true if unit has a rotating turret
+func (d *UnitDef) HasTurret() bool {
+	return d.TankRender != nil
+}
+
+// GetDamage returns damage or 0 if non-combat unit
+func (d *UnitDef) GetDamage() float64 {
+	if d.Combat == nil {
+		return 0
+	}
+	return d.Combat.Damage
+}
+
+// GetRange returns attack range or 0 if non-combat unit
+func (d *UnitDef) GetRange() float64 {
+	if d.Combat == nil {
+		return 0
+	}
+	return d.Combat.Range
+}
+
+// GetFireRate returns fire rate or 0 if non-combat unit
+func (d *UnitDef) GetFireRate() float64 {
+	if d.Combat == nil {
+		return 0
+	}
+	return d.Combat.FireRate
+}
+
+// GetBuildableTypes returns buildable buildings or nil
+func (d *UnitDef) GetBuildableTypes() []BuildingType {
+	if d.Construction == nil {
+		return nil
+	}
+	return d.Construction.BuildableTypes
+}
+
+// GetRepairRate returns repair rate or 0 if unit can't repair
+func (d *UnitDef) GetRepairRate() float64 {
+	if d.Construction == nil {
+		return 0
+	}
+	return d.Construction.RepairRate
+}
+
+// GetRepairRange returns repair range or 0 if unit can't repair
+func (d *UnitDef) GetRepairRange() float64 {
+	if d.Construction == nil {
+		return 0
+	}
+	return d.Construction.RepairRange
+}
+
+// GetTurretRotationSpeed returns turret speed or 0 if no turret
+func (d *UnitDef) GetTurretRotationSpeed() float64 {
+	if d.TankRender == nil {
+		return 0
+	}
+	return d.TankRender.TurretRotationSpeed
 }
 
 type BuildingType int
@@ -250,12 +345,14 @@ var UnitDefs = map[UnitType]*UnitDef{
 		},
 		BuildTime:     3.0,
 		Health:        40,
-		Damage:        10,
-		Range:         120,
-		FireRate:      2.0,
 		VisionRange:   200,
 		RotationSpeed: 0.2,
 		IsInfantry:    true,
+		Combat: &CombatDef{
+			Damage:   10,
+			Range:    120,
+			FireRate: 2.0,
+		},
 	},
 	UnitTypeRocketMarine: {
 		Type:        UnitTypeRocketMarine,
@@ -269,12 +366,14 @@ var UnitDefs = map[UnitType]*UnitDef{
 		},
 		BuildTime:     5.0,
 		Health:        35,
-		Damage:        30,
-		Range:         180,
-		FireRate:      0.8,
 		VisionRange:   220,
 		RotationSpeed: 0.18,
 		IsInfantry:    true,
+		Combat: &CombatDef{
+			Damage:   30,
+			Range:    180,
+			FireRate: 0.8,
+		},
 	},
 	UnitTypeTechnician: {
 		Type:        UnitTypeTechnician,
@@ -286,19 +385,17 @@ var UnitDefs = map[UnitType]*UnitDef{
 		Cost: map[resource.Type]float64{
 			resource.Credits: 180,
 		},
-		BuildTime:      6.0,
-		Health:         25,
-		Damage:         0,
-		Range:          0,
-		FireRate:       0,
-		VisionRange:    180,
-		RepairRate:     15,
-		RepairRange:    60,
-		RotationSpeed:  0.2,
-		CanConstruct:   true,
-		CanRepairUnits: true,
-		BuildableTypes: AllBuildableTypes,
-		IsInfantry:     true,
+		BuildTime:     6.0,
+		Health:        25,
+		VisionRange:   180,
+		RotationSpeed: 0.2,
+		IsInfantry:    true,
+		Construction: &ConstructionDef{
+			BuildableTypes: AllBuildableTypes,
+			RepairRate:     15,
+			RepairRange:    60,
+			CanRepairUnits: true,
+		},
 	},
 
 	// === TIER 1 HOVER VEHICLES (Hover Bay) ===
@@ -314,12 +411,14 @@ var UnitDefs = map[UnitType]*UnitDef{
 		},
 		BuildTime:     4.0,
 		Health:        60,
-		Damage:        8,
-		Range:         100,
-		FireRate:      2.5,
 		VisionRange:   400,
 		RotationSpeed: 0.15,
 		IsHoverUnit:   true,
+		Combat: &CombatDef{
+			Damage:   8,
+			Range:    100,
+			FireRate: 2.5,
+		},
 	},
 	UnitTypeStriker: {
 		Type:        UnitTypeStriker,
@@ -332,15 +431,16 @@ var UnitDefs = map[UnitType]*UnitDef{
 			resource.Credits: 450,
 			resource.Alloys:  10,
 		},
-		BuildTime:           6.0,
-		Health:              180,
-		Damage:              15,
-		Range:               140,
-		FireRate:            3.0,
-		VisionRange:         280,
-		RotationSpeed:       0.08,
-		TurretRotationSpeed: 0.12,
-		IsHoverUnit:         true,
+		BuildTime:     6.0,
+		Health:        180,
+		VisionRange:   280,
+		RotationSpeed: 0.08,
+		IsHoverUnit:   true,
+		Combat: &CombatDef{
+			Damage:   15,
+			Range:    140,
+			FireRate: 3.0,
+		},
 	},
 	UnitTypeCarrierAPC: {
 		Type:        UnitTypeCarrierAPC,
@@ -355,12 +455,14 @@ var UnitDefs = map[UnitType]*UnitDef{
 		},
 		BuildTime:     7.0,
 		Health:        220,
-		Damage:        10,
-		Range:         80,
-		FireRate:      1.5,
 		VisionRange:   200,
 		RotationSpeed: 0.06,
 		IsHoverUnit:   true,
+		Combat: &CombatDef{
+			Damage:   10,
+			Range:    80,
+			FireRate: 1.5,
+		},
 	},
 
 	// === LEGACY UNITS ===
@@ -375,146 +477,178 @@ var UnitDefs = map[UnitType]*UnitDef{
 			resource.Credits: 100,
 			resource.Energy:  50,
 		},
-		BuildTime:           5.0,
-		Health:              100,
-		Damage:              15,
-		Range:               150,
-		FireRate:            1.0,
-		VisionRange:         250,
-		RotationSpeed:       0.03,
-		TurretRotationSpeed: 0.08,
-		HullSpritePath:      "units/color_a/Hull_01.png",
-		GunSpritePath:       "units/color_a/Gun_01.png",
-		SpriteScale:         0.25,
+		BuildTime:     5.0,
+		Health:        100,
+		VisionRange:   250,
+		RotationSpeed: 0.03,
+		SpriteScale:   0.25,
+		Combat: &CombatDef{
+			Damage:   15,
+			Range:    150,
+			FireRate: 1.0,
+		},
+		TankRender: &TankRenderDef{
+			HullSpritePath:      "units/color_a/Hull_01.png",
+			GunSpritePath:       "units/color_a/Gun_01.png",
+			TurretRotationSpeed: 0.08,
+		},
 	},
 	UnitTypeTank2: {
-		Type:                UnitTypeTank2,
-		Name:                "Tank II",
-		Description:         "Tank with dual cannon",
-		Size:                40,
-		Speed:               2.5,
-		Color:               color.RGBA{80, 120, 80, 255},
-		Health:              100,
-		Damage:              18,
-		Range:               150,
-		FireRate:            1.0,
-		VisionRange:         250,
-		RotationSpeed:       0.03,
-		TurretRotationSpeed: 0.08,
-		HullSpritePath:      "units/color_a/Hull_01.png",
-		GunSpritePath:       "units/color_a/Gun_02.png",
-		SpriteScale:         0.25,
+		Type:          UnitTypeTank2,
+		Name:          "Tank II",
+		Description:   "Tank with dual cannon",
+		Size:          40,
+		Speed:         2.5,
+		Color:         color.RGBA{80, 120, 80, 255},
+		Health:        100,
+		VisionRange:   250,
+		RotationSpeed: 0.03,
+		SpriteScale:   0.25,
+		Combat: &CombatDef{
+			Damage:   18,
+			Range:    150,
+			FireRate: 1.0,
+		},
+		TankRender: &TankRenderDef{
+			HullSpritePath:      "units/color_a/Hull_01.png",
+			GunSpritePath:       "units/color_a/Gun_02.png",
+			TurretRotationSpeed: 0.08,
+		},
 	},
 	UnitTypeTank3: {
-		Type:                UnitTypeTank3,
-		Name:                "Tank III",
-		Description:         "Tank with heavy cannon",
-		Size:                40,
-		Speed:               2.3,
-		Color:               color.RGBA{80, 120, 80, 255},
-		Health:              120,
-		Damage:              22,
-		Range:               160,
-		FireRate:            0.8,
-		VisionRange:         250,
-		RotationSpeed:       0.03,
-		TurretRotationSpeed: 0.07,
-		HullSpritePath:      "units/color_a/Hull_01.png",
-		GunSpritePath:       "units/color_a/Gun_03.png",
-		SpriteScale:         0.25,
-		TurretOffsetY:       -30,
+		Type:          UnitTypeTank3,
+		Name:          "Tank III",
+		Description:   "Tank with heavy cannon",
+		Size:          40,
+		Speed:         2.3,
+		Color:         color.RGBA{80, 120, 80, 255},
+		Health:        120,
+		VisionRange:   250,
+		RotationSpeed: 0.03,
+		SpriteScale:   0.25,
+		Combat: &CombatDef{
+			Damage:   22,
+			Range:    160,
+			FireRate: 0.8,
+		},
+		TankRender: &TankRenderDef{
+			HullSpritePath:      "units/color_a/Hull_01.png",
+			GunSpritePath:       "units/color_a/Gun_03.png",
+			TurretRotationSpeed: 0.07,
+			TurretOffsetY:       -30,
+		},
 	},
 	UnitTypeTank4: {
-		Type:                UnitTypeTank4,
-		Name:                "Tank IV",
-		Description:         "Tank with rapid fire cannon",
-		Size:                40,
-		Speed:               2.5,
-		Color:               color.RGBA{80, 120, 80, 255},
-		Health:              90,
-		Damage:              10,
-		Range:               140,
-		FireRate:            2.0,
-		VisionRange:         250,
-		RotationSpeed:       0.03,
-		TurretRotationSpeed: 0.10,
-		HullSpritePath:      "units/color_a/Hull_01.png",
-		GunSpritePath:       "units/color_a/Gun_04.png",
-		SpriteScale:         0.25,
+		Type:          UnitTypeTank4,
+		Name:          "Tank IV",
+		Description:   "Tank with rapid fire cannon",
+		Size:          40,
+		Speed:         2.5,
+		Color:         color.RGBA{80, 120, 80, 255},
+		Health:        90,
+		VisionRange:   250,
+		RotationSpeed: 0.03,
+		SpriteScale:   0.25,
+		Combat: &CombatDef{
+			Damage:   10,
+			Range:    140,
+			FireRate: 2.0,
+		},
+		TankRender: &TankRenderDef{
+			HullSpritePath:      "units/color_a/Hull_01.png",
+			GunSpritePath:       "units/color_a/Gun_04.png",
+			TurretRotationSpeed: 0.10,
+		},
 	},
 	UnitTypeTank5: {
-		Type:                UnitTypeTank5,
-		Name:                "Tank V",
-		Description:         "Tank with missile launcher",
-		Size:                40,
-		Speed:               2.2,
-		Color:               color.RGBA{80, 120, 80, 255},
-		Health:              100,
-		Damage:              30,
-		Range:               200,
-		FireRate:            0.5,
-		VisionRange:         280,
-		RotationSpeed:       0.03,
-		TurretRotationSpeed: 0.06,
-		HullSpritePath:      "units/color_a/Hull_01.png",
-		GunSpritePath:       "units/color_a/Gun_05.png",
-		SpriteScale:         0.25,
+		Type:          UnitTypeTank5,
+		Name:          "Tank V",
+		Description:   "Tank with missile launcher",
+		Size:          40,
+		Speed:         2.2,
+		Color:         color.RGBA{80, 120, 80, 255},
+		Health:        100,
+		VisionRange:   280,
+		RotationSpeed: 0.03,
+		SpriteScale:   0.25,
+		Combat: &CombatDef{
+			Damage:   30,
+			Range:    200,
+			FireRate: 0.5,
+		},
+		TankRender: &TankRenderDef{
+			HullSpritePath:      "units/color_a/Hull_01.png",
+			GunSpritePath:       "units/color_a/Gun_05.png",
+			TurretRotationSpeed: 0.06,
+		},
 	},
 	UnitTypeTank6: {
-		Type:                UnitTypeTank6,
-		Name:                "Tank VI",
-		Description:         "Tank with plasma cannon",
-		Size:                40,
-		Speed:               2.0,
-		Color:               color.RGBA{80, 120, 80, 255},
-		Health:              130,
-		Damage:              35,
-		Range:               170,
-		FireRate:            0.6,
-		VisionRange:         250,
-		RotationSpeed:       0.025,
-		TurretRotationSpeed: 0.05,
-		HullSpritePath:      "units/color_a/Hull_01.png",
-		GunSpritePath:       "units/color_a/Gun_06.png",
-		SpriteScale:         0.25,
-		TurretOffsetY:       -30,
+		Type:          UnitTypeTank6,
+		Name:          "Tank VI",
+		Description:   "Tank with plasma cannon",
+		Size:          40,
+		Speed:         2.0,
+		Color:         color.RGBA{80, 120, 80, 255},
+		Health:        130,
+		VisionRange:   250,
+		RotationSpeed: 0.025,
+		SpriteScale:   0.25,
+		Combat: &CombatDef{
+			Damage:   35,
+			Range:    170,
+			FireRate: 0.6,
+		},
+		TankRender: &TankRenderDef{
+			HullSpritePath:      "units/color_a/Hull_01.png",
+			GunSpritePath:       "units/color_a/Gun_06.png",
+			TurretRotationSpeed: 0.05,
+			TurretOffsetY:       -30,
+		},
 	},
 	UnitTypeTank7: {
-		Type:                UnitTypeTank7,
-		Name:                "Tank VII",
-		Description:         "Tank with artillery cannon",
-		Size:                40,
-		Speed:               1.8,
-		Color:               color.RGBA{80, 120, 80, 255},
-		Health:              110,
-		Damage:              40,
-		Range:               250,
-		FireRate:            0.4,
-		VisionRange:         300,
-		RotationSpeed:       0.02,
-		TurretRotationSpeed: 0.04,
-		HullSpritePath:      "units/color_a/Hull_01.png",
-		GunSpritePath:       "units/color_a/Gun_07.png",
-		SpriteScale:         0.25,
+		Type:          UnitTypeTank7,
+		Name:          "Tank VII",
+		Description:   "Tank with artillery cannon",
+		Size:          40,
+		Speed:         1.8,
+		Color:         color.RGBA{80, 120, 80, 255},
+		Health:        110,
+		VisionRange:   300,
+		RotationSpeed: 0.02,
+		SpriteScale:   0.25,
+		Combat: &CombatDef{
+			Damage:   40,
+			Range:    250,
+			FireRate: 0.4,
+		},
+		TankRender: &TankRenderDef{
+			HullSpritePath:      "units/color_a/Hull_01.png",
+			GunSpritePath:       "units/color_a/Gun_07.png",
+			TurretRotationSpeed: 0.04,
+		},
 	},
 	UnitTypeTank8: {
-		Type:                UnitTypeTank8,
-		Name:                "Tank VIII",
-		Description:         "Tank with experimental weapon",
-		Size:                40,
-		Speed:               2.5,
-		Color:               color.RGBA{80, 120, 80, 255},
-		Health:              150,
-		Damage:              50,
-		Range:               180,
-		FireRate:            0.3,
-		VisionRange:         250,
-		RotationSpeed:       0.03,
-		TurretRotationSpeed: 0.08,
-		HullSpritePath:      "units/color_a/Hull_01.png",
-		GunSpritePath:       "units/color_a/Gun_08.png",
-		SpriteScale:         0.25,
-		TurretOffsetY:       -30,
+		Type:          UnitTypeTank8,
+		Name:          "Tank VIII",
+		Description:   "Tank with experimental weapon",
+		Size:          40,
+		Speed:         2.5,
+		Color:         color.RGBA{80, 120, 80, 255},
+		Health:        150,
+		VisionRange:   250,
+		RotationSpeed: 0.03,
+		SpriteScale:   0.25,
+		Combat: &CombatDef{
+			Damage:   50,
+			Range:    180,
+			FireRate: 0.3,
+		},
+		TankRender: &TankRenderDef{
+			HullSpritePath:      "units/color_a/Hull_01.png",
+			GunSpritePath:       "units/color_a/Gun_08.png",
+			TurretRotationSpeed: 0.08,
+			TurretOffsetY:       -30,
+		},
 	},
 	UnitTypeScout: {
 		Type:        UnitTypeScout,
@@ -529,12 +663,14 @@ var UnitDefs = map[UnitType]*UnitDef{
 		},
 		BuildTime:     2.0,
 		Health:        40,
-		Damage:        5,
-		Range:         100,
-		FireRate:      2.0,
 		VisionRange:   400,
 		RotationSpeed: 0.2,
 		SpritePath:    "scout.png",
+		Combat: &CombatDef{
+			Damage:   5,
+			Range:    100,
+			FireRate: 2.0,
+		},
 	},
 	UnitTypeConstructor: {
 		Type:        UnitTypeConstructor,
@@ -547,15 +683,13 @@ var UnitDefs = map[UnitType]*UnitDef{
 			resource.Credits: 150,
 			resource.Energy:  75,
 		},
-		BuildTime:      8.0,
-		Health:         60,
-		Damage:         0,
-		Range:          0,
-		FireRate:       0,
-		VisionRange:    200,
-		RotationSpeed:  0.1,
-		CanConstruct:   true,
-		BuildableTypes: AllBuildableTypes,
+		BuildTime:     8.0,
+		Health:        60,
+		VisionRange:   200,
+		RotationSpeed: 0.1,
+		Construction: &ConstructionDef{
+			BuildableTypes: AllBuildableTypes,
+		},
 	},
 	UnitTypeMechConstructor: {
 		Type:        UnitTypeMechConstructor,
@@ -568,18 +702,16 @@ var UnitDefs = map[UnitType]*UnitDef{
 			resource.Credits: 200,
 			resource.Energy:  100,
 		},
-		BuildTime:      10.0,
-		Health:         80,
-		Damage:         0,
-		Range:          0,
-		FireRate:       0,
-		VisionRange:    250,
-		RepairRate:     20,
-		RepairRange:    100,
-		RotationSpeed:  0.08,
-		CanConstruct:   true,
-		CanRepairUnits: true,
-		BuildableTypes: AllBuildableTypes,
+		BuildTime:     10.0,
+		Health:        80,
+		VisionRange:   250,
+		RotationSpeed: 0.08,
+		Construction: &ConstructionDef{
+			BuildableTypes: AllBuildableTypes,
+			RepairRate:     20,
+			RepairRange:    100,
+			CanRepairUnits: true,
+		},
 	},
 }
 
@@ -932,11 +1064,15 @@ func GetProducibleUnits(buildingType BuildingType) []*UnitDef {
 
 func GetBuildableDefs(unitType UnitType) []*BuildingDef {
 	def := UnitDefs[unitType]
-	if def == nil || !def.CanConstruct || len(def.BuildableTypes) == 0 {
+	if def == nil || !def.CanConstruct() {
 		return nil
 	}
-	result := make([]*BuildingDef, 0, len(def.BuildableTypes))
-	for _, buildingType := range def.BuildableTypes {
+	buildableTypes := def.GetBuildableTypes()
+	if len(buildableTypes) == 0 {
+		return nil
+	}
+	result := make([]*BuildingDef, 0, len(buildableTypes))
+	for _, buildingType := range buildableTypes {
 		if buildingDef := BuildingDefs[buildingType]; buildingDef != nil {
 			result = append(result, buildingDef)
 		}
