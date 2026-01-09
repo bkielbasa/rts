@@ -36,6 +36,7 @@ jobs:
           cp tanks.exe "$DIST_NAME/"
           cp -r assets "$DIST_NAME/"
           cp -r maps "$DIST_NAME/"
+          cp -r campaigns "$DIST_NAME/"
           zip -r "$DIST_NAME.zip" "$DIST_NAME"
 
       - name: Upload release asset
@@ -78,6 +79,7 @@ jobs:
           cp tanks "$DIST_NAME/"
           cp -r assets "$DIST_NAME/"
           cp -r maps "$DIST_NAME/"
+          cp -r campaigns "$DIST_NAME/"
           zip -r "$DIST_NAME.zip" "$DIST_NAME"
 
       - name: Upload release asset
@@ -120,6 +122,7 @@ jobs:
           cp tanks "$DIST_NAME/"
           cp -r assets "$DIST_NAME/"
           cp -r maps "$DIST_NAME/"
+          cp -r campaigns "$DIST_NAME/"
           zip -r "$DIST_NAME.zip" "$DIST_NAME"
 
       - name: Upload release asset
