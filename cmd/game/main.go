@@ -590,8 +590,7 @@ func (g *Game) loadMissionData(mission *campaign.Mission) {
 
 		// Spawn player units
 		for _, up := range mission.PlayerStart.Units {
-			unitType := mission.GetUnitType(up.Type)
-			def := entity.UnitDefs[unitType]
+			def := up.GetUnitDef()
 			if def == nil {
 				continue
 			}
@@ -633,8 +632,7 @@ func (g *Game) loadMissionData(mission *campaign.Mission) {
 
 		// Spawn enemy units
 		for _, up := range mission.EnemyStart.Units {
-			unitType := mission.GetUnitType(up.Type)
-			def := entity.UnitDefs[unitType]
+			def := up.GetUnitDef()
 			if def == nil {
 				continue
 			}

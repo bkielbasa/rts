@@ -1,8 +1,10 @@
 package entity
 
 import (
-	"github.com/bklimczak/tanks/engine/resource"
+	"fmt"
 	"image/color"
+
+	"github.com/bklimczak/tanks/engine/resource"
 )
 
 type UnitType int
@@ -18,10 +20,10 @@ func (t UnitType) String() string {
 	switch t {
 	case UnitTypeConstructor:
 		return "Constructor"
-	case UnitTypeTank:
-		return "Tank"
 	case UnitTypeScout:
 		return "Scout"
+	case UnitTypeTank:
+		return "Tank"
 	default:
 		return "Unit"
 	}
@@ -388,6 +390,32 @@ var UnitDefs = map[UnitType]*UnitDef{
 			BuildableTypes: AllBuildableTypes,
 		},
 	},
+}
+
+// CreateTankDef creates a custom tank definition with specified hull, gun, and color
+func CreateTankDef(colorName string, hull, gun int) *UnitDef {
+	baseDef := UnitDefs[UnitTypeTank]
+	return &UnitDef{
+		Type:        UnitTypeTank,
+		Name:        baseDef.Name,
+		Description: baseDef.Description,
+		Width:       baseDef.Width,
+		Height:      baseDef.Height,
+		Speed:       baseDef.Speed,
+		Color:       baseDef.Color,
+		Cost:        baseDef.Cost,
+		BuildTime:   baseDef.BuildTime,
+		Health:      baseDef.Health,
+		VisionRange: baseDef.VisionRange,
+		RotationSpeed: baseDef.RotationSpeed,
+		SpriteScale:   baseDef.SpriteScale,
+		Combat:        baseDef.Combat,
+		TankRender: &TankRenderDef{
+			HullSpritePath:      fmt.Sprintf("units/%s/Hull_%02d.png", colorName, hull),
+			GunSpritePath:       fmt.Sprintf("units/%s/Gun_%02d.png", colorName, gun),
+			TurretRotationSpeed: 0.08,
+		},
+	}
 }
 
 var BuildingDefs = map[BuildingType]*BuildingDef{

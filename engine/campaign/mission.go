@@ -52,6 +52,10 @@ type UnitPlacement struct {
 	Type     string   `yaml:"type"`
 	Position Position `yaml:"position"`
 	Count    int      `yaml:"count,omitempty"`
+	// Tank customization (only used when Type is "Tank")
+	Color string `yaml:"color,omitempty"` // color_a, color_b, color_c, color_d
+	Hull  int    `yaml:"hull,omitempty"`  // 1-8
+	Gun   int    `yaml:"gun,omitempty"`   // 1, 2, 4, 5, 7
 }
 
 type BuildingPlacement struct {
@@ -131,6 +135,24 @@ func (m *Mission) GetUnitType(typeName string) entity.UnitType {
 		return entity.UnitTypeConstructor
 	default:
 		return entity.UnitTypeBasic
+	}
+}
+
+// GetUnitDef returns the unit definition for a placement, handling tank customization
+func (up *UnitPlacement) GetUnitDef() *entity.UnitDef {
+	switch up.Type {
+	case "Tank":
+		// If custom tank parameters are set, create a custom tank def
+		if up.Color != "" && up.Hull > 0 && up.Gun > 0 {
+			return entity.CreateTankDef(up.Color, up.Hull, up.Gun)
+		}
+		return entity.UnitDefs[entity.UnitTypeTank]
+	case "Scout":
+		return entity.UnitDefs[entity.UnitTypeScout]
+	case "Constructor":
+		return entity.UnitDefs[entity.UnitTypeConstructor]
+	default:
+		return nil
 	}
 }
 

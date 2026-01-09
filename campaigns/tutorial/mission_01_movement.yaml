@@ -4,49 +4,842 @@ description: "Learn the basics of unit selection and movement."
 map: "maps/default.yaml"
 
 player_start:
-  position: {x: 300, y: 200}
+  position: {x: 600, y: 200}
   resources: {credits: 1000, energy: 500, alloys: 0}
   units:
+    # Color A - Row 1 (Hull 1-8, Gun 1)
     - type: "Tank"
-      position: {x: 500, y: 400}
-      count: 3
-    - type: "Scout"
-      position: {x: 600, y: 400}
-      count: 2
-    - type: "Constructor"
-      position: {x: 400, y: 400}
-      count: 1
+      position: {x: 500, y: 300}
+      color: "color_a"
+      hull: 1
+      gun: 1
+    - type: "Tank"
+      position: {x: 580, y: 300}
+      color: "color_a"
+      hull: 2
+      gun: 1
+    - type: "Tank"
+      position: {x: 660, y: 300}
+      color: "color_a"
+      hull: 3
+      gun: 1
+    - type: "Tank"
+      position: {x: 740, y: 300}
+      color: "color_a"
+      hull: 4
+      gun: 1
+    - type: "Tank"
+      position: {x: 820, y: 300}
+      color: "color_a"
+      hull: 5
+      gun: 1
+    - type: "Tank"
+      position: {x: 900, y: 300}
+      color: "color_a"
+      hull: 6
+      gun: 1
+    - type: "Tank"
+      position: {x: 980, y: 300}
+      color: "color_a"
+      hull: 7
+      gun: 1
+    - type: "Tank"
+      position: {x: 1060, y: 300}
+      color: "color_a"
+      hull: 8
+      gun: 1
+    # Color A - Row 2 (Hull 1-8, Gun 2)
+    - type: "Tank"
+      position: {x: 500, y: 370}
+      color: "color_a"
+      hull: 1
+      gun: 2
+    - type: "Tank"
+      position: {x: 580, y: 370}
+      color: "color_a"
+      hull: 2
+      gun: 2
+    - type: "Tank"
+      position: {x: 660, y: 370}
+      color: "color_a"
+      hull: 3
+      gun: 2
+    - type: "Tank"
+      position: {x: 740, y: 370}
+      color: "color_a"
+      hull: 4
+      gun: 2
+    - type: "Tank"
+      position: {x: 820, y: 370}
+      color: "color_a"
+      hull: 5
+      gun: 2
+    - type: "Tank"
+      position: {x: 900, y: 370}
+      color: "color_a"
+      hull: 6
+      gun: 2
+    - type: "Tank"
+      position: {x: 980, y: 370}
+      color: "color_a"
+      hull: 7
+      gun: 2
+    - type: "Tank"
+      position: {x: 1060, y: 370}
+      color: "color_a"
+      hull: 8
+      gun: 2
+    # Color A - Row 3 (Hull 1-8, Gun 4)
+    - type: "Tank"
+      position: {x: 500, y: 440}
+      color: "color_a"
+      hull: 1
+      gun: 4
+    - type: "Tank"
+      position: {x: 580, y: 440}
+      color: "color_a"
+      hull: 2
+      gun: 4
+    - type: "Tank"
+      position: {x: 660, y: 440}
+      color: "color_a"
+      hull: 3
+      gun: 4
+    - type: "Tank"
+      position: {x: 740, y: 440}
+      color: "color_a"
+      hull: 4
+      gun: 4
+    - type: "Tank"
+      position: {x: 820, y: 440}
+      color: "color_a"
+      hull: 5
+      gun: 4
+    - type: "Tank"
+      position: {x: 900, y: 440}
+      color: "color_a"
+      hull: 6
+      gun: 4
+    - type: "Tank"
+      position: {x: 980, y: 440}
+      color: "color_a"
+      hull: 7
+      gun: 4
+    - type: "Tank"
+      position: {x: 1060, y: 440}
+      color: "color_a"
+      hull: 8
+      gun: 4
+    # Color A - Row 4 (Hull 1-8, Gun 5)
+    - type: "Tank"
+      position: {x: 500, y: 510}
+      color: "color_a"
+      hull: 1
+      gun: 5
+    - type: "Tank"
+      position: {x: 580, y: 510}
+      color: "color_a"
+      hull: 2
+      gun: 5
+    - type: "Tank"
+      position: {x: 660, y: 510}
+      color: "color_a"
+      hull: 3
+      gun: 5
+    - type: "Tank"
+      position: {x: 740, y: 510}
+      color: "color_a"
+      hull: 4
+      gun: 5
+    - type: "Tank"
+      position: {x: 820, y: 510}
+      color: "color_a"
+      hull: 5
+      gun: 5
+    - type: "Tank"
+      position: {x: 900, y: 510}
+      color: "color_a"
+      hull: 6
+      gun: 5
+    - type: "Tank"
+      position: {x: 980, y: 510}
+      color: "color_a"
+      hull: 7
+      gun: 5
+    - type: "Tank"
+      position: {x: 1060, y: 510}
+      color: "color_a"
+      hull: 8
+      gun: 5
+    # Color A - Row 5 (Hull 1-8, Gun 7)
+    - type: "Tank"
+      position: {x: 500, y: 580}
+      color: "color_a"
+      hull: 1
+      gun: 7
+    - type: "Tank"
+      position: {x: 580, y: 580}
+      color: "color_a"
+      hull: 2
+      gun: 7
+    - type: "Tank"
+      position: {x: 660, y: 580}
+      color: "color_a"
+      hull: 3
+      gun: 7
+    - type: "Tank"
+      position: {x: 740, y: 580}
+      color: "color_a"
+      hull: 4
+      gun: 7
+    - type: "Tank"
+      position: {x: 820, y: 580}
+      color: "color_a"
+      hull: 5
+      gun: 7
+    - type: "Tank"
+      position: {x: 900, y: 580}
+      color: "color_a"
+      hull: 6
+      gun: 7
+    - type: "Tank"
+      position: {x: 980, y: 580}
+      color: "color_a"
+      hull: 7
+      gun: 7
+    - type: "Tank"
+      position: {x: 1060, y: 580}
+      color: "color_a"
+      hull: 8
+      gun: 7
+    # Color B - Row 1 (Hull 1-8, Gun 1)
+    - type: "Tank"
+      position: {x: 500, y: 700}
+      color: "color_b"
+      hull: 1
+      gun: 1
+    - type: "Tank"
+      position: {x: 580, y: 700}
+      color: "color_b"
+      hull: 2
+      gun: 1
+    - type: "Tank"
+      position: {x: 660, y: 700}
+      color: "color_b"
+      hull: 3
+      gun: 1
+    - type: "Tank"
+      position: {x: 740, y: 700}
+      color: "color_b"
+      hull: 4
+      gun: 1
+    - type: "Tank"
+      position: {x: 820, y: 700}
+      color: "color_b"
+      hull: 5
+      gun: 1
+    - type: "Tank"
+      position: {x: 900, y: 700}
+      color: "color_b"
+      hull: 6
+      gun: 1
+    - type: "Tank"
+      position: {x: 980, y: 700}
+      color: "color_b"
+      hull: 7
+      gun: 1
+    - type: "Tank"
+      position: {x: 1060, y: 700}
+      color: "color_b"
+      hull: 8
+      gun: 1
+    # Color B - Row 2 (Hull 1-8, Gun 2)
+    - type: "Tank"
+      position: {x: 500, y: 770}
+      color: "color_b"
+      hull: 1
+      gun: 2
+    - type: "Tank"
+      position: {x: 580, y: 770}
+      color: "color_b"
+      hull: 2
+      gun: 2
+    - type: "Tank"
+      position: {x: 660, y: 770}
+      color: "color_b"
+      hull: 3
+      gun: 2
+    - type: "Tank"
+      position: {x: 740, y: 770}
+      color: "color_b"
+      hull: 4
+      gun: 2
+    - type: "Tank"
+      position: {x: 820, y: 770}
+      color: "color_b"
+      hull: 5
+      gun: 2
+    - type: "Tank"
+      position: {x: 900, y: 770}
+      color: "color_b"
+      hull: 6
+      gun: 2
+    - type: "Tank"
+      position: {x: 980, y: 770}
+      color: "color_b"
+      hull: 7
+      gun: 2
+    - type: "Tank"
+      position: {x: 1060, y: 770}
+      color: "color_b"
+      hull: 8
+      gun: 2
+    # Color B - Row 3 (Hull 1-8, Gun 4)
+    - type: "Tank"
+      position: {x: 500, y: 840}
+      color: "color_b"
+      hull: 1
+      gun: 4
+    - type: "Tank"
+      position: {x: 580, y: 840}
+      color: "color_b"
+      hull: 2
+      gun: 4
+    - type: "Tank"
+      position: {x: 660, y: 840}
+      color: "color_b"
+      hull: 3
+      gun: 4
+    - type: "Tank"
+      position: {x: 740, y: 840}
+      color: "color_b"
+      hull: 4
+      gun: 4
+    - type: "Tank"
+      position: {x: 820, y: 840}
+      color: "color_b"
+      hull: 5
+      gun: 4
+    - type: "Tank"
+      position: {x: 900, y: 840}
+      color: "color_b"
+      hull: 6
+      gun: 4
+    - type: "Tank"
+      position: {x: 980, y: 840}
+      color: "color_b"
+      hull: 7
+      gun: 4
+    - type: "Tank"
+      position: {x: 1060, y: 840}
+      color: "color_b"
+      hull: 8
+      gun: 4
+    # Color B - Row 4 (Hull 1-8, Gun 5)
+    - type: "Tank"
+      position: {x: 500, y: 910}
+      color: "color_b"
+      hull: 1
+      gun: 5
+    - type: "Tank"
+      position: {x: 580, y: 910}
+      color: "color_b"
+      hull: 2
+      gun: 5
+    - type: "Tank"
+      position: {x: 660, y: 910}
+      color: "color_b"
+      hull: 3
+      gun: 5
+    - type: "Tank"
+      position: {x: 740, y: 910}
+      color: "color_b"
+      hull: 4
+      gun: 5
+    - type: "Tank"
+      position: {x: 820, y: 910}
+      color: "color_b"
+      hull: 5
+      gun: 5
+    - type: "Tank"
+      position: {x: 900, y: 910}
+      color: "color_b"
+      hull: 6
+      gun: 5
+    - type: "Tank"
+      position: {x: 980, y: 910}
+      color: "color_b"
+      hull: 7
+      gun: 5
+    - type: "Tank"
+      position: {x: 1060, y: 910}
+      color: "color_b"
+      hull: 8
+      gun: 5
+    # Color B - Row 5 (Hull 1-8, Gun 7)
+    - type: "Tank"
+      position: {x: 500, y: 980}
+      color: "color_b"
+      hull: 1
+      gun: 7
+    - type: "Tank"
+      position: {x: 580, y: 980}
+      color: "color_b"
+      hull: 2
+      gun: 7
+    - type: "Tank"
+      position: {x: 660, y: 980}
+      color: "color_b"
+      hull: 3
+      gun: 7
+    - type: "Tank"
+      position: {x: 740, y: 980}
+      color: "color_b"
+      hull: 4
+      gun: 7
+    - type: "Tank"
+      position: {x: 820, y: 980}
+      color: "color_b"
+      hull: 5
+      gun: 7
+    - type: "Tank"
+      position: {x: 900, y: 980}
+      color: "color_b"
+      hull: 6
+      gun: 7
+    - type: "Tank"
+      position: {x: 980, y: 980}
+      color: "color_b"
+      hull: 7
+      gun: 7
+    - type: "Tank"
+      position: {x: 1060, y: 980}
+      color: "color_b"
+      hull: 8
+      gun: 7
+    # Color C - Row 1 (Hull 1-8, Gun 1)
+    - type: "Tank"
+      position: {x: 500, y: 1100}
+      color: "color_c"
+      hull: 1
+      gun: 1
+    - type: "Tank"
+      position: {x: 580, y: 1100}
+      color: "color_c"
+      hull: 2
+      gun: 1
+    - type: "Tank"
+      position: {x: 660, y: 1100}
+      color: "color_c"
+      hull: 3
+      gun: 1
+    - type: "Tank"
+      position: {x: 740, y: 1100}
+      color: "color_c"
+      hull: 4
+      gun: 1
+    - type: "Tank"
+      position: {x: 820, y: 1100}
+      color: "color_c"
+      hull: 5
+      gun: 1
+    - type: "Tank"
+      position: {x: 900, y: 1100}
+      color: "color_c"
+      hull: 6
+      gun: 1
+    - type: "Tank"
+      position: {x: 980, y: 1100}
+      color: "color_c"
+      hull: 7
+      gun: 1
+    - type: "Tank"
+      position: {x: 1060, y: 1100}
+      color: "color_c"
+      hull: 8
+      gun: 1
+    # Color C - Row 2 (Hull 1-8, Gun 2)
+    - type: "Tank"
+      position: {x: 500, y: 1170}
+      color: "color_c"
+      hull: 1
+      gun: 2
+    - type: "Tank"
+      position: {x: 580, y: 1170}
+      color: "color_c"
+      hull: 2
+      gun: 2
+    - type: "Tank"
+      position: {x: 660, y: 1170}
+      color: "color_c"
+      hull: 3
+      gun: 2
+    - type: "Tank"
+      position: {x: 740, y: 1170}
+      color: "color_c"
+      hull: 4
+      gun: 2
+    - type: "Tank"
+      position: {x: 820, y: 1170}
+      color: "color_c"
+      hull: 5
+      gun: 2
+    - type: "Tank"
+      position: {x: 900, y: 1170}
+      color: "color_c"
+      hull: 6
+      gun: 2
+    - type: "Tank"
+      position: {x: 980, y: 1170}
+      color: "color_c"
+      hull: 7
+      gun: 2
+    - type: "Tank"
+      position: {x: 1060, y: 1170}
+      color: "color_c"
+      hull: 8
+      gun: 2
+    # Color C - Row 3 (Hull 1-8, Gun 4)
+    - type: "Tank"
+      position: {x: 500, y: 1240}
+      color: "color_c"
+      hull: 1
+      gun: 4
+    - type: "Tank"
+      position: {x: 580, y: 1240}
+      color: "color_c"
+      hull: 2
+      gun: 4
+    - type: "Tank"
+      position: {x: 660, y: 1240}
+      color: "color_c"
+      hull: 3
+      gun: 4
+    - type: "Tank"
+      position: {x: 740, y: 1240}
+      color: "color_c"
+      hull: 4
+      gun: 4
+    - type: "Tank"
+      position: {x: 820, y: 1240}
+      color: "color_c"
+      hull: 5
+      gun: 4
+    - type: "Tank"
+      position: {x: 900, y: 1240}
+      color: "color_c"
+      hull: 6
+      gun: 4
+    - type: "Tank"
+      position: {x: 980, y: 1240}
+      color: "color_c"
+      hull: 7
+      gun: 4
+    - type: "Tank"
+      position: {x: 1060, y: 1240}
+      color: "color_c"
+      hull: 8
+      gun: 4
+    # Color C - Row 4 (Hull 1-8, Gun 5)
+    - type: "Tank"
+      position: {x: 500, y: 1310}
+      color: "color_c"
+      hull: 1
+      gun: 5
+    - type: "Tank"
+      position: {x: 580, y: 1310}
+      color: "color_c"
+      hull: 2
+      gun: 5
+    - type: "Tank"
+      position: {x: 660, y: 1310}
+      color: "color_c"
+      hull: 3
+      gun: 5
+    - type: "Tank"
+      position: {x: 740, y: 1310}
+      color: "color_c"
+      hull: 4
+      gun: 5
+    - type: "Tank"
+      position: {x: 820, y: 1310}
+      color: "color_c"
+      hull: 5
+      gun: 5
+    - type: "Tank"
+      position: {x: 900, y: 1310}
+      color: "color_c"
+      hull: 6
+      gun: 5
+    - type: "Tank"
+      position: {x: 980, y: 1310}
+      color: "color_c"
+      hull: 7
+      gun: 5
+    - type: "Tank"
+      position: {x: 1060, y: 1310}
+      color: "color_c"
+      hull: 8
+      gun: 5
+    # Color C - Row 5 (Hull 1-8, Gun 7)
+    - type: "Tank"
+      position: {x: 500, y: 1380}
+      color: "color_c"
+      hull: 1
+      gun: 7
+    - type: "Tank"
+      position: {x: 580, y: 1380}
+      color: "color_c"
+      hull: 2
+      gun: 7
+    - type: "Tank"
+      position: {x: 660, y: 1380}
+      color: "color_c"
+      hull: 3
+      gun: 7
+    - type: "Tank"
+      position: {x: 740, y: 1380}
+      color: "color_c"
+      hull: 4
+      gun: 7
+    - type: "Tank"
+      position: {x: 820, y: 1380}
+      color: "color_c"
+      hull: 5
+      gun: 7
+    - type: "Tank"
+      position: {x: 900, y: 1380}
+      color: "color_c"
+      hull: 6
+      gun: 7
+    - type: "Tank"
+      position: {x: 980, y: 1380}
+      color: "color_c"
+      hull: 7
+      gun: 7
+    - type: "Tank"
+      position: {x: 1060, y: 1380}
+      color: "color_c"
+      hull: 8
+      gun: 7
+    # Color D - Row 1 (Hull 1-8, Gun 1)
+    - type: "Tank"
+      position: {x: 500, y: 1500}
+      color: "color_d"
+      hull: 1
+      gun: 1
+    - type: "Tank"
+      position: {x: 580, y: 1500}
+      color: "color_d"
+      hull: 2
+      gun: 1
+    - type: "Tank"
+      position: {x: 660, y: 1500}
+      color: "color_d"
+      hull: 3
+      gun: 1
+    - type: "Tank"
+      position: {x: 740, y: 1500}
+      color: "color_d"
+      hull: 4
+      gun: 1
+    - type: "Tank"
+      position: {x: 820, y: 1500}
+      color: "color_d"
+      hull: 5
+      gun: 1
+    - type: "Tank"
+      position: {x: 900, y: 1500}
+      color: "color_d"
+      hull: 6
+      gun: 1
+    - type: "Tank"
+      position: {x: 980, y: 1500}
+      color: "color_d"
+      hull: 7
+      gun: 1
+    - type: "Tank"
+      position: {x: 1060, y: 1500}
+      color: "color_d"
+      hull: 8
+      gun: 1
+    # Color D - Row 2 (Hull 1-8, Gun 2)
+    - type: "Tank"
+      position: {x: 500, y: 1570}
+      color: "color_d"
+      hull: 1
+      gun: 2
+    - type: "Tank"
+      position: {x: 580, y: 1570}
+      color: "color_d"
+      hull: 2
+      gun: 2
+    - type: "Tank"
+      position: {x: 660, y: 1570}
+      color: "color_d"
+      hull: 3
+      gun: 2
+    - type: "Tank"
+      position: {x: 740, y: 1570}
+      color: "color_d"
+      hull: 4
+      gun: 2
+    - type: "Tank"
+      position: {x: 820, y: 1570}
+      color: "color_d"
+      hull: 5
+      gun: 2
+    - type: "Tank"
+      position: {x: 900, y: 1570}
+      color: "color_d"
+      hull: 6
+      gun: 2
+    - type: "Tank"
+      position: {x: 980, y: 1570}
+      color: "color_d"
+      hull: 7
+      gun: 2
+    - type: "Tank"
+      position: {x: 1060, y: 1570}
+      color: "color_d"
+      hull: 8
+      gun: 2
+    # Color D - Row 3 (Hull 1-8, Gun 4)
+    - type: "Tank"
+      position: {x: 500, y: 1640}
+      color: "color_d"
+      hull: 1
+      gun: 4
+    - type: "Tank"
+      position: {x: 580, y: 1640}
+      color: "color_d"
+      hull: 2
+      gun: 4
+    - type: "Tank"
+      position: {x: 660, y: 1640}
+      color: "color_d"
+      hull: 3
+      gun: 4
+    - type: "Tank"
+      position: {x: 740, y: 1640}
+      color: "color_d"
+      hull: 4
+      gun: 4
+    - type: "Tank"
+      position: {x: 820, y: 1640}
+      color: "color_d"
+      hull: 5
+      gun: 4
+    - type: "Tank"
+      position: {x: 900, y: 1640}
+      color: "color_d"
+      hull: 6
+      gun: 4
+    - type: "Tank"
+      position: {x: 980, y: 1640}
+      color: "color_d"
+      hull: 7
+      gun: 4
+    - type: "Tank"
+      position: {x: 1060, y: 1640}
+      color: "color_d"
+      hull: 8
+      gun: 4
+    # Color D - Row 4 (Hull 1-8, Gun 5)
+    - type: "Tank"
+      position: {x: 500, y: 1710}
+      color: "color_d"
+      hull: 1
+      gun: 5
+    - type: "Tank"
+      position: {x: 580, y: 1710}
+      color: "color_d"
+      hull: 2
+      gun: 5
+    - type: "Tank"
+      position: {x: 660, y: 1710}
+      color: "color_d"
+      hull: 3
+      gun: 5
+    - type: "Tank"
+      position: {x: 740, y: 1710}
+      color: "color_d"
+      hull: 4
+      gun: 5
+    - type: "Tank"
+      position: {x: 820, y: 1710}
+      color: "color_d"
+      hull: 5
+      gun: 5
+    - type: "Tank"
+      position: {x: 900, y: 1710}
+      color: "color_d"
+      hull: 6
+      gun: 5
+    - type: "Tank"
+      position: {x: 980, y: 1710}
+      color: "color_d"
+      hull: 7
+      gun: 5
+    - type: "Tank"
+      position: {x: 1060, y: 1710}
+      color: "color_d"
+      hull: 8
+      gun: 5
+    # Color D - Row 5 (Hull 1-8, Gun 7)
+    - type: "Tank"
+      position: {x: 500, y: 1780}
+      color: "color_d"
+      hull: 1
+      gun: 7
+    - type: "Tank"
+      position: {x: 580, y: 1780}
+      color: "color_d"
+      hull: 2
+      gun: 7
+    - type: "Tank"
+      position: {x: 660, y: 1780}
+      color: "color_d"
+      hull: 3
+      gun: 7
+    - type: "Tank"
+      position: {x: 740, y: 1780}
+      color: "color_d"
+      hull: 4
+      gun: 7
+    - type: "Tank"
+      position: {x: 820, y: 1780}
+      color: "color_d"
+      hull: 5
+      gun: 7
+    - type: "Tank"
+      position: {x: 900, y: 1780}
+      color: "color_d"
+      hull: 6
+      gun: 7
+    - type: "Tank"
+      position: {x: 980, y: 1780}
+      color: "color_d"
+      hull: 7
+      gun: 7
+    - type: "Tank"
+      position: {x: 1060, y: 1780}
+      color: "color_d"
+      hull: 8
+      gun: 7
   buildings:
     - type: "SolarArray"
-      position: {x: 150, y: 100}
-      completed: true
-    - type: "SolarArray"
-      position: {x: 150, y: 250}
+      position: {x: 450, y: 100}
       completed: true
     - type: "VehicleFactory"
-      position: {x: 300, y: 100}
-      completed: true
-    - type: "OreExtractor"
-      position: {x: 500, y: 100}
-      completed: true
-    - type: "OreExtractor"
-      position: {x: 550, y: 100}
-      completed: true
-    - type: "OreExtractor"
       position: {x: 600, y: 100}
-      completed: true
-    - type: "OreExtractor"
-      position: {x: 650, y: 100}
-      completed: true
-    - type: "OreExtractor"
-      position: {x: 700, y: 100}
       completed: true
 
 enemy_start: null
 
 victory_conditions:
   - type: "reach_zone_all"
-    zone: {x: 600, y: 400, width: 100, height: 100}
+    zone: {x: 900, y: 400, width: 100, height: 100}
 
 defeat_conditions:
   - type: "lose_all_units"
@@ -56,10 +849,10 @@ restrictions:
   can_produce: false
 
 briefing:
-  title: "Boot Camp"
+  title: "Tank Showcase"
   objectives:
-    - "Select your units by clicking or dragging"
-    - "Move all units to the green target zone"
-  background: "Welcome, Commander! Your first task is simple - learn how to command your troops. Click on units to select them, or drag a box to select multiple units. Right-click to move them to a destination."
+    - "View all tank variants with different hulls and guns"
+    - "4 colors x 8 hulls x 5 guns = 160 tank variants"
+  background: "This mission showcases all available tank combinations. Each row shows 8 different hull designs. Each section of 5 rows shows the same hulls with guns 1, 2, 4, 5, and 7."
 
 difficulty: "easy"
