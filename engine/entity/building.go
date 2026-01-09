@@ -29,14 +29,19 @@ type Building struct {
 	// Combat state for defensive buildings
 	AttackTarget *Unit
 	FireCooldown float64
+
+	// Animation state
+	AnimationTime  float64
+	AnimationFrame int
 }
 
 func NewBuilding(id uint64, x, y float64, def *BuildingDef) *Building {
+	w, h := def.GetWidth(), def.GetHeight()
 	b := &Building{
 		Entity: Entity{
 			ID:       id,
 			Position: emath.NewVec2(x, y),
-			Size:     emath.NewVec2(def.Size, def.Size),
+			Size:     emath.NewVec2(w, h),
 			Color:    def.Color,
 			Active:   true,
 		},
@@ -47,16 +52,17 @@ func NewBuilding(id uint64, x, y float64, def *BuildingDef) *Building {
 		Health:        def.Health,
 		MaxHealth:     def.Health,
 	}
-	b.RallyPoint = emath.Vec2{X: x + def.Size + 20, Y: y + def.Size/2}
+	b.RallyPoint = emath.Vec2{X: x + w + 20, Y: y + h/2}
 	b.HasRallyPoint = true
 	return b
 }
 func NewBuildingUnderConstruction(id uint64, x, y float64, def *BuildingDef) *Building {
+	w, h := def.GetWidth(), def.GetHeight()
 	b := &Building{
 		Entity: Entity{
 			ID:       id,
 			Position: emath.NewVec2(x, y),
-			Size:     emath.NewVec2(def.Size, def.Size),
+			Size:     emath.NewVec2(w, h),
 			Color:    def.Color,
 			Active:   true,
 		},
@@ -67,7 +73,7 @@ func NewBuildingUnderConstruction(id uint64, x, y float64, def *BuildingDef) *Bu
 		Health:        def.Health * 0.1,
 		MaxHealth:     def.Health,
 	}
-	b.RallyPoint = emath.Vec2{X: x + def.Size + 20, Y: y + def.Size/2}
+	b.RallyPoint = emath.Vec2{X: x + w + 20, Y: y + h/2}
 	b.HasRallyPoint = true
 	return b
 }
@@ -319,4 +325,17 @@ func (b *Building) SetAttackTarget(target *Unit) {
 // ClearAttackTarget clears the building's attack target
 func (b *Building) ClearAttackTarget() {
 	b.AttackTarget = nil
+}
+
+// UpdateAnimation updates the building's animation frame
+func (b *Building) UpdateAnimation(dt float64) {
+	if b.Def == nil || b.Def.AnimationSpeed <= 0 || b.Def.SpriteHeight <= 0 {
+		return
+	}
+	b.AnimationTime += dt
+	frameDuration := 1.0 / b.Def.AnimationSpeed
+	if b.AnimationTime >= frameDuration {
+		b.AnimationTime -= frameDuration
+		b.AnimationFrame++
+	}
 }

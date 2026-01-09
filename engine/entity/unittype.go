@@ -20,6 +20,13 @@ const (
 	// Legacy types for compatibility
 	UnitTypeConstructor
 	UnitTypeTank
+	UnitTypeTank2
+	UnitTypeTank3
+	UnitTypeTank4
+	UnitTypeTank5
+	UnitTypeTank6
+	UnitTypeTank7
+	UnitTypeTank8
 	UnitTypeScout
 	UnitTypeMechConstructor
 )
@@ -75,6 +82,12 @@ type UnitDef struct {
 	TurretRotationSpeed float64
 	IsHoverUnit         bool
 	IsInfantry          bool
+
+	SpritePath     string
+	HullSpritePath string  // Hull/body sprite for tanks
+	GunSpritePath  string  // Gun/turret sprite for tanks
+	SpriteScale    float64 // Scale factor for sprites (0 or 1 = original size)
+	TurretOffsetY  float64 // Additional Y offset for turret positioning (in pixels, before scale)
 }
 
 type BuildingType int
@@ -86,7 +99,7 @@ const (
 	BuildingFusionReactor
 	BuildingOreExtractor
 	BuildingAlloyFoundry
-	BuildingBarracks
+	BuildingVehicleFactory
 	BuildingHoverBay
 	BuildingDataUplink
 	BuildingWall
@@ -117,8 +130,8 @@ func (t BuildingType) String() string {
 		return "Ore Extractor"
 	case BuildingAlloyFoundry:
 		return "Alloy Foundry"
-	case BuildingBarracks:
-		return "Barracks"
+	case BuildingVehicleFactory:
+		return "Vehicle Factory"
 	case BuildingHoverBay:
 		return "Hover Bay"
 	case BuildingDataUplink:
@@ -156,7 +169,9 @@ type BuildingDef struct {
 	Type              BuildingType
 	Name              string
 	Description       string
-	Size              float64
+	Size              float64 // For square buildings (legacy/convenience)
+	Width             float64 // Explicit width (takes precedence over Size)
+	Height            float64 // Explicit height (takes precedence over Size)
 	Color             color.Color
 	Cost              map[resource.Type]float64
 	CreditsProduction float64
@@ -182,8 +197,29 @@ type BuildingDef struct {
 	FireRate      float64
 	EnergyPerShot float64
 
-	AntiAir       bool
-	AntiGround    bool
+	AntiAir    bool
+	AntiGround bool
+
+	SpritePath     string
+	SpriteWidth    float64 // Width of single frame (0 = use Size)
+	SpriteHeight   float64 // Height of single frame (0 = use Size, frames calculated from sprite height / SpriteHeight)
+	AnimationSpeed float64 // Frames per second (0 = static)
+}
+
+// GetWidth returns the actual width of the building
+func (d *BuildingDef) GetWidth() float64 {
+	if d.Width > 0 {
+		return d.Width
+	}
+	return d.Size
+}
+
+// GetHeight returns the actual height of the building
+func (d *BuildingDef) GetHeight() float64 {
+	if d.Height > 0 {
+		return d.Height
+	}
+	return d.Size
 }
 
 var AllBuildableTypes = []BuildingType{
@@ -192,7 +228,7 @@ var AllBuildableTypes = []BuildingType{
 	BuildingFusionReactor,
 	BuildingOreExtractor,
 	BuildingAlloyFoundry,
-	BuildingBarracks,
+	BuildingVehicleFactory,
 	BuildingHoverBay,
 	BuildingDataUplink,
 	BuildingWall,
@@ -332,7 +368,7 @@ var UnitDefs = map[UnitType]*UnitDef{
 		Type:        UnitTypeTank,
 		Name:        "Tank",
 		Description: "Heavy combat unit",
-		Size:        22,
+		Size:        40,
 		Speed:       2.5,
 		Color:       color.RGBA{80, 120, 80, 255},
 		Cost: map[resource.Type]float64{
@@ -347,6 +383,138 @@ var UnitDefs = map[UnitType]*UnitDef{
 		VisionRange:         250,
 		RotationSpeed:       0.03,
 		TurretRotationSpeed: 0.08,
+		HullSpritePath:      "units/color_a/Hull_01.png",
+		GunSpritePath:       "units/color_a/Gun_01.png",
+		SpriteScale:         0.25,
+	},
+	UnitTypeTank2: {
+		Type:                UnitTypeTank2,
+		Name:                "Tank II",
+		Description:         "Tank with dual cannon",
+		Size:                40,
+		Speed:               2.5,
+		Color:               color.RGBA{80, 120, 80, 255},
+		Health:              100,
+		Damage:              18,
+		Range:               150,
+		FireRate:            1.0,
+		VisionRange:         250,
+		RotationSpeed:       0.03,
+		TurretRotationSpeed: 0.08,
+		HullSpritePath:      "units/color_a/Hull_01.png",
+		GunSpritePath:       "units/color_a/Gun_02.png",
+		SpriteScale:         0.25,
+	},
+	UnitTypeTank3: {
+		Type:                UnitTypeTank3,
+		Name:                "Tank III",
+		Description:         "Tank with heavy cannon",
+		Size:                40,
+		Speed:               2.3,
+		Color:               color.RGBA{80, 120, 80, 255},
+		Health:              120,
+		Damage:              22,
+		Range:               160,
+		FireRate:            0.8,
+		VisionRange:         250,
+		RotationSpeed:       0.03,
+		TurretRotationSpeed: 0.07,
+		HullSpritePath:      "units/color_a/Hull_01.png",
+		GunSpritePath:       "units/color_a/Gun_03.png",
+		SpriteScale:         0.25,
+		TurretOffsetY:       -30,
+	},
+	UnitTypeTank4: {
+		Type:                UnitTypeTank4,
+		Name:                "Tank IV",
+		Description:         "Tank with rapid fire cannon",
+		Size:                40,
+		Speed:               2.5,
+		Color:               color.RGBA{80, 120, 80, 255},
+		Health:              90,
+		Damage:              10,
+		Range:               140,
+		FireRate:            2.0,
+		VisionRange:         250,
+		RotationSpeed:       0.03,
+		TurretRotationSpeed: 0.10,
+		HullSpritePath:      "units/color_a/Hull_01.png",
+		GunSpritePath:       "units/color_a/Gun_04.png",
+		SpriteScale:         0.25,
+	},
+	UnitTypeTank5: {
+		Type:                UnitTypeTank5,
+		Name:                "Tank V",
+		Description:         "Tank with missile launcher",
+		Size:                40,
+		Speed:               2.2,
+		Color:               color.RGBA{80, 120, 80, 255},
+		Health:              100,
+		Damage:              30,
+		Range:               200,
+		FireRate:            0.5,
+		VisionRange:         280,
+		RotationSpeed:       0.03,
+		TurretRotationSpeed: 0.06,
+		HullSpritePath:      "units/color_a/Hull_01.png",
+		GunSpritePath:       "units/color_a/Gun_05.png",
+		SpriteScale:         0.25,
+	},
+	UnitTypeTank6: {
+		Type:                UnitTypeTank6,
+		Name:                "Tank VI",
+		Description:         "Tank with plasma cannon",
+		Size:                40,
+		Speed:               2.0,
+		Color:               color.RGBA{80, 120, 80, 255},
+		Health:              130,
+		Damage:              35,
+		Range:               170,
+		FireRate:            0.6,
+		VisionRange:         250,
+		RotationSpeed:       0.025,
+		TurretRotationSpeed: 0.05,
+		HullSpritePath:      "units/color_a/Hull_01.png",
+		GunSpritePath:       "units/color_a/Gun_06.png",
+		SpriteScale:         0.25,
+		TurretOffsetY:       -30,
+	},
+	UnitTypeTank7: {
+		Type:                UnitTypeTank7,
+		Name:                "Tank VII",
+		Description:         "Tank with artillery cannon",
+		Size:                40,
+		Speed:               1.8,
+		Color:               color.RGBA{80, 120, 80, 255},
+		Health:              110,
+		Damage:              40,
+		Range:               250,
+		FireRate:            0.4,
+		VisionRange:         300,
+		RotationSpeed:       0.02,
+		TurretRotationSpeed: 0.04,
+		HullSpritePath:      "units/color_a/Hull_01.png",
+		GunSpritePath:       "units/color_a/Gun_07.png",
+		SpriteScale:         0.25,
+	},
+	UnitTypeTank8: {
+		Type:                UnitTypeTank8,
+		Name:                "Tank VIII",
+		Description:         "Tank with experimental weapon",
+		Size:                40,
+		Speed:               2.5,
+		Color:               color.RGBA{80, 120, 80, 255},
+		Health:              150,
+		Damage:              50,
+		Range:               180,
+		FireRate:            0.3,
+		VisionRange:         250,
+		RotationSpeed:       0.03,
+		TurretRotationSpeed: 0.08,
+		HullSpritePath:      "units/color_a/Hull_01.png",
+		GunSpritePath:       "units/color_a/Gun_08.png",
+		SpriteScale:         0.25,
+		TurretOffsetY:       -30,
 	},
 	UnitTypeScout: {
 		Type:        UnitTypeScout,
@@ -366,6 +534,7 @@ var UnitDefs = map[UnitType]*UnitDef{
 		FireRate:      2.0,
 		VisionRange:   400,
 		RotationSpeed: 0.2,
+		SpritePath:    "scout.png",
 	},
 	UnitTypeConstructor: {
 		Type:        UnitTypeConstructor,
@@ -436,7 +605,7 @@ var BuildingDefs = map[BuildingType]*BuildingDef{
 		Type:             BuildingSolarArray,
 		Name:             "Solar Array",
 		Description:      "Basic power generation",
-		Size:             35,
+		Size:             128,
 		Color:            color.RGBA{50, 120, 200, 255},
 		Cost: map[resource.Type]float64{
 			resource.Credits: 400,
@@ -445,6 +614,7 @@ var BuildingDefs = map[BuildingType]*BuildingDef{
 		BuildTime:        8,
 		VisionRange:      100,
 		Health:           150,
+		SpritePath:       "buildings/solar_array.png",
 	},
 	BuildingFusionReactor: {
 		Type:             BuildingFusionReactor,
@@ -493,21 +663,26 @@ var BuildingDefs = map[BuildingType]*BuildingDef{
 		Health:             400,
 		AlloysStorage:      200,
 	},
-	BuildingBarracks: {
-		Type:        BuildingBarracks,
-		Name:        "Barracks",
-		Description: "Trains infantry units",
-		Size:        128,
+	BuildingVehicleFactory: {
+		Type:        BuildingVehicleFactory,
+		Name:        "Vehicle Factory",
+		Description: "Produces combat vehicles",
+		Width:       128,
+		Height:      64,
 		Color:       color.RGBA{120, 100, 80, 255},
 		Cost: map[resource.Type]float64{
-			resource.Credits: 500,
+			resource.Credits: 600,
 		},
-		EnergyConsumption: 10,
-		BuildTime:         12,
+		EnergyConsumption: 15,
+		BuildTime:         15,
 		VisionRange:       150,
-		Health:            400,
+		Health:            500,
 		IsFactory:         true,
-		ProducesUnits:     []UnitType{UnitTypeTrooper, UnitTypeRocketMarine, UnitTypeTechnician},
+		ProducesUnits:     []UnitType{UnitTypeTank, UnitTypeScout},
+		SpritePath:        "buildings/factory.png",
+		SpriteWidth:       128,
+		SpriteHeight:      64,
+		AnimationSpeed:    4,
 	},
 	BuildingHoverBay: {
 		Type:        BuildingHoverBay,

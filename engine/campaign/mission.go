@@ -137,6 +137,20 @@ func (m *Mission) GetUnitType(typeName string) entity.UnitType {
 		return entity.UnitTypeCarrierAPC
 	case "Tank":
 		return entity.UnitTypeTank
+	case "Tank2":
+		return entity.UnitTypeTank2
+	case "Tank3":
+		return entity.UnitTypeTank3
+	case "Tank4":
+		return entity.UnitTypeTank4
+	case "Tank5":
+		return entity.UnitTypeTank5
+	case "Tank6":
+		return entity.UnitTypeTank6
+	case "Tank7":
+		return entity.UnitTypeTank7
+	case "Tank8":
+		return entity.UnitTypeTank8
 	case "Scout":
 		return entity.UnitTypeScout
 	case "Constructor":
@@ -160,8 +174,8 @@ func (m *Mission) GetBuildingType(typeName string) entity.BuildingType {
 		return entity.BuildingOreExtractor
 	case "AlloyFoundry":
 		return entity.BuildingAlloyFoundry
-	case "Barracks":
-		return entity.BuildingBarracks
+	case "VehicleFactory", "Barracks":
+		return entity.BuildingVehicleFactory
 	case "HoverBay":
 		return entity.BuildingHoverBay
 	case "DataUplink":

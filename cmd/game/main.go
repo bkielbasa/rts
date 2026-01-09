@@ -10,11 +10,13 @@ import (
 
 	"github.com/bklimczak/tanks/engine"
 	"github.com/bklimczak/tanks/engine/ai"
+	"github.com/bklimczak/tanks/engine/assets"
 	"github.com/bklimczak/tanks/engine/campaign"
 	"github.com/bklimczak/tanks/engine/entity"
 	"github.com/bklimczak/tanks/engine/fog"
 	"github.com/bklimczak/tanks/engine/input"
 	emath "github.com/bklimczak/tanks/engine/math"
+	"github.com/bklimczak/tanks/engine/render"
 	"github.com/bklimczak/tanks/engine/resource"
 	"github.com/bklimczak/tanks/engine/save"
 	"github.com/bklimczak/tanks/engine/terrain"
@@ -69,10 +71,9 @@ type Game struct {
 	campaignMenu      *ui.CampaignMenu
 	missionBriefing   *ui.MissionBriefing
 	enemyAI           *ai.EnemyAI
-	tankSprite        *ebiten.Image
+	assets            *assets.Manager
+	entityRenderer    *render.EntityRenderer
 	tankFactorySprite *ebiten.Image
-	barracksSprite    *ebiten.Image
-	scoutSprite       *ebiten.Image
 	tileImages        map[color.RGBA]*ebiten.Image
 	terrainCache      *ebiten.Image
 	screenWidth       int
@@ -88,12 +89,12 @@ type Game struct {
 	placementMode     bool
 	placementDef      *entity.BuildingDef
 	placementValid    bool
-	whitePixel        *ebiten.Image
 	saveManager       *save.Manager
 	campaignManager   *campaign.Manager
 	currentCampaign   string
 	currentMission    *campaign.Mission
 	isSkirmishMode    bool
+	elapsedTime       float64
 }
 
 func NewGame() *Game {
@@ -106,21 +107,12 @@ func NewGame() *Game {
 	saveMenu := ui.NewSaveMenu()
 	campaignMenu := ui.NewCampaignMenu()
 	missionBriefing := ui.NewMissionBriefing()
-	tankSprite, _, err := ebitenutil.NewImageFromFile("assets/tank.png")
-	if err != nil {
-		log.Printf("Warning: could not load tank sprite: %v", err)
-	}
+
+	assetManager := assets.NewManager("assets")
+
 	tankFactorySprite, _, err := ebitenutil.NewImageFromFile("assets/tank_factory.png")
 	if err != nil {
 		log.Printf("Warning: could not load tank factory sprite: %v", err)
-	}
-	barracksSprite, _, err := ebitenutil.NewImageFromFile("assets/buildings/barracks.png")
-	if err != nil {
-		log.Printf("Warning: could not load barracks sprite: %v", err)
-	}
-	scoutSprite, _, err := ebitenutil.NewImageFromFile("assets/scout.png")
-	if err != nil {
-		log.Printf("Warning: could not load scout sprite: %v", err)
 	}
 	terrainMap, err := terrain.LoadMapFromFile("maps/default.yaml")
 	if err != nil {
@@ -147,8 +139,11 @@ func NewGame() *Game {
 		log.Printf("Warning: could not load campaigns: %v", err)
 	}
 
+	eng := engine.New(actualWorldWidth, actualWorldHeight, baseWidth, baseHeight)
+	entityRenderer := render.NewEntityRenderer(eng.Renderer, assetManager)
+
 	g := &Game{
-		engine:            engine.New(actualWorldWidth, actualWorldHeight, baseWidth, baseHeight),
+		engine:            eng,
 		terrainMap:        terrainMap,
 		fogOfWar:          fog.New(actualWorldWidth, actualWorldHeight, terrain.TileSize),
 		resourceBar:       resourceBar,
@@ -161,10 +156,9 @@ func NewGame() *Game {
 		missionBriefing:   missionBriefing,
 		tooltip:           tooltip,
 		infoPanel:         infoPanel,
-		tankSprite:        tankSprite,
+		assets:            assetManager,
+		entityRenderer:    entityRenderer,
 		tankFactorySprite: tankFactorySprite,
-		barracksSprite:    barracksSprite,
-		scoutSprite:       scoutSprite,
 		state:             StateMenu,
 		saveManager:       saveManager,
 		campaignManager:   campaignManager,
@@ -537,7 +531,128 @@ func (g *Game) handleSaveSlotSelection(slot int) {
 }
 
 func (g *Game) startMission(mission *campaign.Mission) {
-	g.resetGame()
+	g.resetGameForMission()
+	g.loadMissionData(mission)
+}
+
+func (g *Game) resetGameForMission() {
+	g.units = nil
+	g.buildings = nil
+	g.wreckages = nil
+	g.projectiles = nil
+	g.nextUnitID = 0
+	g.nextBuildingID = 0
+	g.nextWreckageID = 0
+	g.nextProjectileID = 0
+	g.placementMode = false
+	g.placementDef = nil
+	g.terrainCache = nil
+	g.elapsedTime = 0
+
+	g.engine.Resources = resource.NewManager()
+
+	actualWorldWidth := g.terrainMap.PixelWidth
+	actualWorldHeight := g.terrainMap.PixelHeight
+	g.fogOfWar = fog.New(actualWorldWidth, actualWorldHeight, terrain.TileSize)
+}
+
+func (g *Game) loadMissionData(mission *campaign.Mission) {
+	if mission.PlayerStart != nil {
+		// Set player resources
+		if r := g.engine.Resources.Get(resource.Credits); r != nil {
+			r.Current += mission.PlayerStart.Resources.Credits
+		}
+		if r := g.engine.Resources.Get(resource.Energy); r != nil {
+			r.Current += mission.PlayerStart.Resources.Energy
+		}
+		if r := g.engine.Resources.Get(resource.Alloys); r != nil {
+			r.Current += mission.PlayerStart.Resources.Alloys
+		}
+
+		// Spawn player buildings
+		for _, bp := range mission.PlayerStart.Buildings {
+			buildingType := mission.GetBuildingType(bp.Type)
+			def := entity.BuildingDefs[buildingType]
+			if def == nil {
+				continue
+			}
+			x, y := g.findPassablePosition(bp.Position.X, bp.Position.Y)
+			building := entity.NewBuilding(g.nextBuildingID, x, y, def)
+			building.Faction = entity.FactionPlayer
+			if bp.Completed {
+				building.Completed = true
+				building.BuildProgress = 1.0
+				g.applyBuildingEffects(def)
+			}
+			g.buildings = append(g.buildings, building)
+			g.nextBuildingID++
+		}
+
+		// Spawn player units
+		for _, up := range mission.PlayerStart.Units {
+			unitType := mission.GetUnitType(up.Type)
+			def := entity.UnitDefs[unitType]
+			if def == nil {
+				continue
+			}
+			count := up.Count
+			if count <= 0 {
+				count = 1
+			}
+			for i := 0; i < count; i++ {
+				x, y := g.findPassablePosition(up.Position.X+float64(i)*25, up.Position.Y)
+				unit := entity.NewUnitFromDef(g.nextUnitID, x, y, def, entity.FactionPlayer)
+				g.units = append(g.units, unit)
+				g.nextUnitID++
+			}
+		}
+	}
+
+	if mission.EnemyStart != nil {
+		// Setup enemy AI at enemy start position
+		g.enemyAI = ai.NewEnemyAI(mission.EnemyStart.Position.X, mission.EnemyStart.Position.Y)
+
+		// Spawn enemy buildings
+		for _, bp := range mission.EnemyStart.Buildings {
+			buildingType := mission.GetBuildingType(bp.Type)
+			def := entity.BuildingDefs[buildingType]
+			if def == nil {
+				continue
+			}
+			x, y := g.findPassablePosition(bp.Position.X, bp.Position.Y)
+			building := entity.NewBuilding(g.nextBuildingID, x, y, def)
+			building.Faction = entity.FactionEnemy
+			building.Color = entity.GetFactionTintedColor(def.Color, entity.FactionEnemy)
+			if bp.Completed {
+				building.Completed = true
+				building.BuildProgress = 1.0
+			}
+			g.buildings = append(g.buildings, building)
+			g.nextBuildingID++
+		}
+
+		// Spawn enemy units
+		for _, up := range mission.EnemyStart.Units {
+			unitType := mission.GetUnitType(up.Type)
+			def := entity.UnitDefs[unitType]
+			if def == nil {
+				continue
+			}
+			count := up.Count
+			if count <= 0 {
+				count = 1
+			}
+			for i := 0; i < count; i++ {
+				x, y := g.findPassablePosition(up.Position.X+float64(i)*25, up.Position.Y)
+				unit := entity.NewUnitFromDef(g.nextUnitID, x, y, def, entity.FactionEnemy)
+				g.units = append(g.units, unit)
+				g.nextUnitID++
+			}
+		}
+	} else {
+		// No enemy in this mission, create a dummy AI
+		g.enemyAI = ai.NewEnemyAI(0, 0)
+	}
 }
 func (g *Game) updatePlaying(inputState input.State) error {
 	if inputState.EscapePressed {
@@ -554,6 +669,7 @@ func (g *Game) updatePlaying(inputState input.State) error {
 			factory.QueueProduction(entity.UnitDefs[entity.UnitTypeTank])
 		}
 	}
+	g.elapsedTime += tickRate
 	g.engine.UpdateViewportSize(float64(g.screenWidth), float64(g.screenHeight))
 	g.resourceBar.UpdateWidth(float64(g.screenWidth))
 	g.commandPanel.UpdateHeight(float64(g.screenHeight))
@@ -663,6 +779,29 @@ func (g *Game) updateInfoPanel() {
 }
 
 func (g *Game) checkVictoryConditions() {
+	// Check mission-specific victory conditions if we have a mission loaded
+	if g.currentMission != nil {
+		// Check victory conditions
+		for _, vcDef := range g.currentMission.VictoryConditions {
+			vc := campaign.CreateVictoryCondition(vcDef)
+			if vc.Check(g) {
+				g.state = StateVictory
+				return
+			}
+		}
+
+		// Check defeat conditions
+		for _, dcDef := range g.currentMission.DefeatConditions {
+			dc := campaign.CreateDefeatCondition(dcDef)
+			if dc.Check(g) {
+				g.state = StateDefeat
+				return
+			}
+		}
+		return
+	}
+
+	// Fallback for skirmish mode: destroy all enemies
 	enemyUnits := 0
 	enemyBuildings := 0
 	playerUnits := 0
@@ -692,6 +831,19 @@ func (g *Game) checkVictoryConditions() {
 	} else if playerUnits == 0 && playerBuildings == 0 {
 		g.state = StateDefeat
 	}
+}
+
+// GameStateReader interface implementation for victory/defeat condition checks
+func (g *Game) GetUnits() []*entity.Unit {
+	return g.units
+}
+
+func (g *Game) GetBuildings() []*entity.Building {
+	return g.buildings
+}
+
+func (g *Game) GetElapsedTime() float64 {
+	return g.elapsedTime
 }
 func (g *Game) handleSelection(inputState input.State) {
 	if inputState.MousePos.Y < g.resourceBar.Height() {
@@ -1152,6 +1304,7 @@ func (g *Game) applyBuildingEffects(def *entity.BuildingDef) {
 }
 func (g *Game) updateBuildings() {
 	for _, b := range g.buildings {
+		b.UpdateAnimation(tickRate)
 		if completedUnit := b.UpdateProduction(tickRate, g.engine.Resources); completedUnit != nil {
 			spawnPos := b.GetSpawnPoint()
 			unit := entity.NewUnitFromDef(g.nextUnitID, spawnPos.X, spawnPos.Y, completedUnit, b.Faction)
@@ -1522,7 +1675,6 @@ func (g *Game) drawUnit(screen *ebiten.Image, u *entity.Unit) {
 	zoom := cam.GetZoom()
 	screenPos := cam.WorldToScreen(u.Position)
 	scaledSize := u.Size.Mul(zoom)
-	screenBounds := emath.Rect{Pos: screenPos, Size: scaledSize}
 	if u.Selected {
 		selectionRect := emath.Rect{
 			Pos:  screenPos.Sub(emath.Vec2{X: selectionMargin * zoom, Y: selectionMargin * zoom}),
@@ -1531,54 +1683,7 @@ func (g *Game) drawUnit(screen *ebiten.Image, u *entity.Unit) {
 		r.DrawRect(screen, selectionRect, color.RGBA{0, 255, 0, 128})
 	}
 	screenCenter := cam.WorldToScreen(u.Center())
-	if u.Type == entity.UnitTypeTank {
-		// Draw tank as square body with rotating turret
-		g.drawTank(screen, u, screenCenter)
-	} else if u.Type == entity.UnitTypeScout && g.scoutSprite != nil {
-		spriteW := float64(g.scoutSprite.Bounds().Dx())
-		spriteH := float64(g.scoutSprite.Bounds().Dy())
-		targetSize := 48.0 * zoom
-		scaleX := targetSize / spriteW
-		scaleY := targetSize / spriteH
-		op := &ebiten.DrawImageOptions{}
-		op.GeoM.Translate(-spriteW/2, -spriteH/2)
-		op.GeoM.Rotate(u.Angle + math.Pi/2)
-		op.GeoM.Scale(scaleX, scaleY)
-		op.GeoM.Translate(screenCenter.X, screenCenter.Y)
-		if u.Faction == entity.FactionEnemy {
-			op.ColorScale.Scale(1.2, 0.6, 0.6, 1)
-		}
-		screen.DrawImage(g.scoutSprite, op)
-	} else {
-		r.DrawRect(screen, screenBounds, u.Color)
-		arrowLength := scaledSize.X * 0.5
-		arrowWidth := scaledSize.X * 0.25
-		tipX := screenCenter.X + math.Cos(u.Angle)*arrowLength
-		tipY := screenCenter.Y + math.Sin(u.Angle)*arrowLength
-		perpAngle := u.Angle + math.Pi/2
-		baseX1 := screenCenter.X + math.Cos(perpAngle)*arrowWidth
-		baseY1 := screenCenter.Y + math.Sin(perpAngle)*arrowWidth
-		baseX2 := screenCenter.X - math.Cos(perpAngle)*arrowWidth
-		baseY2 := screenCenter.Y - math.Sin(perpAngle)*arrowWidth
-		arrowColor := color.RGBA{0, 0, 0, 200}
-		r.DrawLine(screen, emath.Vec2{X: baseX1, Y: baseY1}, emath.Vec2{X: tipX, Y: tipY}, 2, arrowColor)
-		r.DrawLine(screen, emath.Vec2{X: baseX2, Y: baseY2}, emath.Vec2{X: tipX, Y: tipY}, 2, arrowColor)
-		r.DrawLine(screen, emath.Vec2{X: baseX1, Y: baseY1}, emath.Vec2{X: baseX2, Y: baseY2}, 2, arrowColor)
-		if u.Type == entity.UnitTypeConstructor {
-			plusOffset := arrowLength * 0.3
-			plusX := screenCenter.X - math.Cos(u.Angle)*plusOffset
-			plusY := screenCenter.Y - math.Sin(u.Angle)*plusOffset
-			plusSize := 3.0 * zoom
-			r.DrawLine(screen,
-				emath.Vec2{X: plusX - plusSize, Y: plusY},
-				emath.Vec2{X: plusX + plusSize, Y: plusY},
-				2, color.RGBA{0, 0, 0, 200})
-			r.DrawLine(screen,
-				emath.Vec2{X: plusX, Y: plusY - plusSize},
-				emath.Vec2{X: plusX, Y: plusY + plusSize},
-				2, color.RGBA{0, 0, 0, 200})
-		}
-	}
+	g.entityRenderer.DrawUnit(screen, u, screenPos, screenCenter, zoom)
 	if u.HasTarget && u.Selected {
 		screenTarget := cam.WorldToScreen(u.Target)
 		r.DrawCircle(screen, screenTarget, float32(4*zoom), color.RGBA{0, 255, 0, 200})
@@ -1630,140 +1735,6 @@ func (g *Game) drawUnit(screen *ebiten.Image, u *entity.Unit) {
 	}
 }
 
-func (g *Game) drawTank(screen *ebiten.Image, u *entity.Unit, screenCenter emath.Vec2) {
-	zoom := g.engine.Camera.GetZoom()
-
-	// Tank body size (scaled by zoom)
-	bodySize := u.Size.X * 1.2 * zoom
-	halfBody := bodySize / 2
-
-	// Turret size (smaller than body)
-	turretSize := bodySize * 0.5
-	halfTurret := turretSize / 2
-
-	// Barrel length and width
-	barrelLength := bodySize * 0.7
-	barrelWidth := turretSize * 0.25
-
-	// Colors based on faction
-	var bodyColor, turretColor, barrelColor color.RGBA
-	if u.Faction == entity.FactionEnemy {
-		bodyColor = color.RGBA{140, 60, 60, 255}   // Dark red
-		turretColor = color.RGBA{180, 80, 80, 255} // Lighter red
-		barrelColor = color.RGBA{100, 40, 40, 255} // Darker red
-	} else {
-		bodyColor = color.RGBA{60, 100, 60, 255}   // Dark green
-		turretColor = color.RGBA{80, 140, 80, 255} // Lighter green
-		barrelColor = color.RGBA{40, 70, 40, 255}  // Darker green
-	}
-
-	// Draw tank body (rotated square)
-	g.drawRotatedRect(screen, screenCenter, bodySize, bodySize, u.Angle, bodyColor)
-
-	// Draw outline for body
-	g.drawRotatedRectOutline(screen, screenCenter, bodySize, bodySize, u.Angle, color.RGBA{30, 30, 30, 255})
-
-	// Draw barrel first (so turret overlaps it at the base)
-	barrelStartX := screenCenter.X + math.Cos(u.TurretAngle)*halfTurret*0.3
-	barrelStartY := screenCenter.Y + math.Sin(u.TurretAngle)*halfTurret*0.3
-	barrelEndX := screenCenter.X + math.Cos(u.TurretAngle)*barrelLength
-	barrelEndY := screenCenter.Y + math.Sin(u.TurretAngle)*barrelLength
-
-	// Draw barrel as thick line
-	vector.StrokeLine(screen,
-		float32(barrelStartX), float32(barrelStartY),
-		float32(barrelEndX), float32(barrelEndY),
-		float32(barrelWidth), barrelColor, false)
-
-	// Draw turret (rotated square, centered on tank)
-	g.drawRotatedRect(screen, screenCenter, turretSize, turretSize, u.TurretAngle, turretColor)
-
-	// Draw outline for turret
-	g.drawRotatedRectOutline(screen, screenCenter, turretSize, turretSize, u.TurretAngle, color.RGBA{30, 30, 30, 255})
-
-	// Draw small direction indicator on body front
-	frontX := screenCenter.X + math.Cos(u.Angle)*halfBody*0.6
-	frontY := screenCenter.Y + math.Sin(u.Angle)*halfBody*0.6
-	vector.DrawFilledCircle(screen, float32(frontX), float32(frontY), float32(2*zoom), color.RGBA{200, 200, 200, 200}, false)
-}
-
-func (g *Game) drawRotatedRect(screen *ebiten.Image, center emath.Vec2, width, height, angle float64, c color.RGBA) {
-	halfW := width / 2
-	halfH := height / 2
-
-	// Calculate corner offsets
-	cos := math.Cos(angle)
-	sin := math.Sin(angle)
-
-	// Four corners relative to center, then rotated
-	corners := [4]emath.Vec2{
-		{X: -halfW, Y: -halfH},
-		{X: halfW, Y: -halfH},
-		{X: halfW, Y: halfH},
-		{X: -halfW, Y: halfH},
-	}
-
-	// Rotate and translate corners
-	var rotated [4]emath.Vec2
-	for i, corner := range corners {
-		rotated[i] = emath.Vec2{
-			X: center.X + corner.X*cos - corner.Y*sin,
-			Y: center.Y + corner.X*sin + corner.Y*cos,
-		}
-	}
-
-	// Draw as two triangles
-	vs := []ebiten.Vertex{
-		{DstX: float32(rotated[0].X), DstY: float32(rotated[0].Y), ColorR: float32(c.R) / 255, ColorG: float32(c.G) / 255, ColorB: float32(c.B) / 255, ColorA: float32(c.A) / 255},
-		{DstX: float32(rotated[1].X), DstY: float32(rotated[1].Y), ColorR: float32(c.R) / 255, ColorG: float32(c.G) / 255, ColorB: float32(c.B) / 255, ColorA: float32(c.A) / 255},
-		{DstX: float32(rotated[2].X), DstY: float32(rotated[2].Y), ColorR: float32(c.R) / 255, ColorG: float32(c.G) / 255, ColorB: float32(c.B) / 255, ColorA: float32(c.A) / 255},
-		{DstX: float32(rotated[3].X), DstY: float32(rotated[3].Y), ColorR: float32(c.R) / 255, ColorG: float32(c.G) / 255, ColorB: float32(c.B) / 255, ColorA: float32(c.A) / 255},
-	}
-	indices := []uint16{0, 1, 2, 0, 2, 3}
-
-	screen.DrawTriangles(vs, indices, g.getWhitePixel(), &ebiten.DrawTrianglesOptions{})
-}
-
-func (g *Game) drawRotatedRectOutline(screen *ebiten.Image, center emath.Vec2, width, height, angle float64, c color.RGBA) {
-	halfW := width / 2
-	halfH := height / 2
-
-	cos := math.Cos(angle)
-	sin := math.Sin(angle)
-
-	corners := [4]emath.Vec2{
-		{X: -halfW, Y: -halfH},
-		{X: halfW, Y: -halfH},
-		{X: halfW, Y: halfH},
-		{X: -halfW, Y: halfH},
-	}
-
-	var rotated [4]emath.Vec2
-	for i, corner := range corners {
-		rotated[i] = emath.Vec2{
-			X: center.X + corner.X*cos - corner.Y*sin,
-			Y: center.Y + corner.X*sin + corner.Y*cos,
-		}
-	}
-
-	// Draw lines between corners
-	for i := range 4 {
-		next := (i + 1) % 4
-		vector.StrokeLine(screen,
-			float32(rotated[i].X), float32(rotated[i].Y),
-			float32(rotated[next].X), float32(rotated[next].Y),
-			1, c, false)
-	}
-}
-
-func (g *Game) getWhitePixel() *ebiten.Image {
-	if g.whitePixel == nil {
-		g.whitePixel = ebiten.NewImage(1, 1)
-		g.whitePixel.Fill(color.White)
-	}
-	return g.whitePixel
-}
-
 func (g *Game) drawProjectile(screen *ebiten.Image, p *entity.Projectile) {
 	r := g.engine.Renderer
 	cam := g.engine.Camera
@@ -1808,6 +1779,8 @@ func (g *Game) drawBuilding(screen *ebiten.Image, b *entity.Building) {
 		r.DrawRect(screen, selectionRect, color.RGBA{0, 255, 0, 128})
 	}
 	screenCenter := emath.Vec2{X: screenPos.X + scaledSize.X/2, Y: screenPos.Y + scaledSize.Y/2}
+
+	// Handle tank factory sprite separately (legacy, not migrated to SpritePath yet)
 	if b.Type == entity.BuildingTankFactory && g.tankFactorySprite != nil && b.Completed {
 		spriteW := float64(g.tankFactorySprite.Bounds().Dx())
 		spriteH := float64(g.tankFactorySprite.Bounds().Dy())
@@ -1819,45 +1792,16 @@ func (g *Game) drawBuilding(screen *ebiten.Image, b *entity.Building) {
 		op.GeoM.Scale(scaleX, scaleY)
 		op.GeoM.Translate(screenCenter.X, screenCenter.Y)
 		screen.DrawImage(g.tankFactorySprite, op)
-	} else if b.Type == entity.BuildingBarracks && g.barracksSprite != nil && b.Completed {
-		spriteW := float64(g.barracksSprite.Bounds().Dx())
-		spriteH := float64(g.barracksSprite.Bounds().Dy())
-		targetSize := b.Def.Size * zoom
-		scaleX := targetSize / spriteW
-		scaleY := targetSize / spriteH
-		op := &ebiten.DrawImageOptions{}
-		op.GeoM.Translate(-spriteW/2, -spriteH/2)
-		op.GeoM.Scale(scaleX, scaleY)
-		op.GeoM.Translate(screenCenter.X, screenCenter.Y)
-		if b.Faction == entity.FactionEnemy {
-			op.ColorScale.Scale(1.2, 0.6, 0.6, 1)
-		}
-		screen.DrawImage(g.barracksSprite, op)
-	} else if b.Completed {
-		r.DrawRect(screen, screenBounds, b.Color)
 	} else {
-		rgba := b.Color.(color.RGBA)
-		constructionColor := color.RGBA{
-			R: uint8(float64(rgba.R) * 0.5),
-			G: uint8(float64(rgba.G) * 0.5),
-			B: uint8(float64(rgba.B) * 0.5),
-			A: 180,
-		}
-		r.DrawRect(screen, screenBounds, constructionColor)
-		scaffoldColor := color.RGBA{100, 80, 50, 150}
-		lineSpacing := 10.0 * zoom
-		for i := 0.0; i < scaledSize.X; i += lineSpacing {
-			r.DrawLine(screen,
-				emath.Vec2{X: screenPos.X + i, Y: screenPos.Y},
-				emath.Vec2{X: screenPos.X, Y: screenPos.Y + i},
-				1, scaffoldColor)
-		}
+		g.entityRenderer.DrawBuilding(screen, b, screenPos, zoom)
 	}
-	borderColor := color.RGBA{60, 60, 60, 255}
-	if !b.Completed {
-		borderColor = color.RGBA{200, 150, 50, 255}
-	}
-	if b.Type != entity.BuildingTankFactory || !b.Completed || g.tankFactorySprite == nil {
+
+	// Draw border for buildings without sprites
+	if g.entityRenderer.NeedsBorder(b) && (b.Type != entity.BuildingTankFactory || !b.Completed || g.tankFactorySprite == nil) {
+		borderColor := color.RGBA{60, 60, 60, 255}
+		if !b.Completed {
+			borderColor = color.RGBA{200, 150, 50, 255}
+		}
 		r.DrawRectOutline(screen, screenBounds, 2, borderColor)
 	}
 	if !b.Completed {
