@@ -104,6 +104,14 @@ func (u *Unit) CanBuild() bool {
 	return u.Def != nil && u.Def.CanConstruct()
 }
 
+// Center returns the center point of the unit
+func (u *Unit) Center() emath.Vec2 {
+	return emath.Vec2{
+		X: u.Position.X + u.Size.X/2,
+		Y: u.Position.Y + u.Size.Y/2,
+	}
+}
+
 func (u *Unit) CanRepair() bool {
 	return u.Def != nil && u.Def.CanRepairUnits() && u.RepairRate > 0 && u.RepairRange > 0
 }

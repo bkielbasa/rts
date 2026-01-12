@@ -1673,14 +1673,12 @@ func (g *Game) drawUnit(screen *ebiten.Image, u *entity.Unit) {
 	zoom := cam.GetZoom()
 	screenPos := cam.WorldToScreen(u.Position)
 	scaledSize := u.Size.Mul(zoom)
-	if u.Selected {
-		selectionRect := emath.Rect{
-			Pos:  screenPos.Sub(emath.Vec2{X: selectionMargin * zoom, Y: selectionMargin * zoom}),
-			Size: scaledSize.Add(emath.Vec2{X: selectionMargin * 2 * zoom, Y: selectionMargin * 2 * zoom}),
-		}
-		r.DrawRect(screen, selectionRect, color.RGBA{0, 255, 0, 128})
-	}
 	screenCenter := cam.WorldToScreen(u.Center())
+	if u.Selected {
+		selectionWidth := scaledSize.X + selectionMargin*2*zoom
+		selectionHeight := scaledSize.Y + selectionMargin*2*zoom
+		r.DrawRotatedRect(screen, screenCenter, selectionWidth, selectionHeight, u.Angle, color.RGBA{0, 255, 0, 128})
+	}
 	g.entityRenderer.DrawUnit(screen, u, screenPos, screenCenter, zoom)
 	if u.HasTarget && u.Selected {
 		screenTarget := cam.WorldToScreen(u.Target)
