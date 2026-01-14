@@ -2,13 +2,14 @@ package ui
 
 import (
 	"fmt"
+	"image/color"
+
 	"github.com/bklimczak/tanks/engine/entity"
 	emath "github.com/bklimczak/tanks/engine/math"
 	"github.com/bklimczak/tanks/engine/resource"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
-	"image/color"
 )
 
 const (
@@ -16,6 +17,7 @@ const (
 	buttonHeight      = 50
 	buttonMargin      = 5
 	panelPadding      = 10
+	scrollSpeed       = 30.0
 )
 
 type ButtonState int
@@ -106,14 +108,11 @@ func (b *UnitButton) Draw(screen *ebiten.Image, resources *resource.Manager) {
 	ebitenutil.DebugPrintAt(screen, b.Label, labelX, labelY)
 	costY := int(y + 22)
 	costStr := ""
-	if credits, ok := b.UnitDef.Cost[resource.Credits]; ok && credits > 0 {
-		costStr += fmt.Sprintf("C:%.0f ", credits)
+	if metal, ok := b.UnitDef.Cost[resource.Metal]; ok && metal > 0 {
+		costStr += fmt.Sprintf("M:%.0f ", metal)
 	}
 	if energy, ok := b.UnitDef.Cost[resource.Energy]; ok && energy > 0 {
-		costStr += fmt.Sprintf("E:%.0f ", energy)
-	}
-	if alloys, ok := b.UnitDef.Cost[resource.Alloys]; ok && alloys > 0 {
-		costStr += fmt.Sprintf("A:%.0f", alloys)
+		costStr += fmt.Sprintf("E:%.0f", energy)
 	}
 	ebitenutil.DebugPrintAt(screen, costStr, labelX, costY)
 	timeStr := fmt.Sprintf("%.0fs", b.UnitDef.BuildTime)
@@ -170,14 +169,11 @@ func (b *CommandButton) Draw(screen *ebiten.Image, resources *resource.Manager) 
 	ebitenutil.DebugPrintAt(screen, b.Label, labelX, labelY)
 	costY := int(y + 22)
 	costStr := ""
-	if credits, ok := b.BuildingDef.Cost[resource.Credits]; ok && credits > 0 {
-		costStr += fmt.Sprintf("C:%.0f ", credits)
+	if metal, ok := b.BuildingDef.Cost[resource.Metal]; ok && metal > 0 {
+		costStr += fmt.Sprintf("M:%.0f ", metal)
 	}
 	if energy, ok := b.BuildingDef.Cost[resource.Energy]; ok && energy > 0 {
-		costStr += fmt.Sprintf("E:%.0f ", energy)
-	}
-	if alloys, ok := b.BuildingDef.Cost[resource.Alloys]; ok && alloys > 0 {
-		costStr += fmt.Sprintf("A:%.0f", alloys)
+		costStr += fmt.Sprintf("E:%.0f", energy)
 	}
 	ebitenutil.DebugPrintAt(screen, costStr, labelX, costY)
 	timeStr := fmt.Sprintf("%.0fs", b.BuildingDef.BuildTime)
@@ -192,6 +188,12 @@ type CommandPanel struct {
 	topOffset       float64
 	title           string
 	selectedFactory *entity.Building
+
+	// Scroll state
+	scrollOffset    float64
+	maxScrollOffset float64
+	contentHeight   float64
+	visibleHeight   float64
 }
 
 func NewCommandPanel(topOffset float64, screenHeight float64) *CommandPanel {
@@ -203,9 +205,73 @@ func NewCommandPanel(topOffset float64, screenHeight float64) *CommandPanel {
 }
 func (cp *CommandPanel) UpdateHeight(screenHeight float64) {
 	cp.panel.Bounds.Size.Y = screenHeight - cp.topOffset
+	cp.calculateScrollBounds()
 }
 func (cp *CommandPanel) Width() float64 {
 	return commandPanelWidth
+}
+
+func (cp *CommandPanel) calculateScrollBounds() {
+	buttonCount := len(cp.buttons) + len(cp.unitButtons)
+	if buttonCount == 0 {
+		cp.contentHeight = 0
+		cp.maxScrollOffset = 0
+		return
+	}
+
+	cp.contentHeight = float64(buttonCount) * (buttonHeight + buttonMargin)
+
+	titleAreaHeight := 20.0 + panelPadding
+	cp.visibleHeight = cp.panel.Bounds.Size.Y - titleAreaHeight - panelPadding*2
+
+	if cp.contentHeight > cp.visibleHeight {
+		cp.maxScrollOffset = cp.contentHeight - cp.visibleHeight
+	} else {
+		cp.maxScrollOffset = 0
+	}
+
+	cp.clampScroll()
+}
+
+func (cp *CommandPanel) clampScroll() {
+	if cp.scrollOffset < 0 {
+		cp.scrollOffset = 0
+	}
+	if cp.scrollOffset > cp.maxScrollOffset {
+		cp.scrollOffset = cp.maxScrollOffset
+	}
+}
+
+func (cp *CommandPanel) HandleScroll(wheelY float64) {
+	if !cp.visible || cp.maxScrollOffset == 0 {
+		return
+	}
+
+	cp.scrollOffset -= wheelY * scrollSpeed
+	cp.clampScroll()
+	cp.updateButtonPositions()
+}
+
+func (cp *CommandPanel) isButtonVisible(btnY, btnHeight float64) bool {
+	buttonsStartY := cp.topOffset + panelPadding + 20
+	buttonsEndY := cp.topOffset + cp.panel.Bounds.Size.Y - panelPadding
+
+	return btnY+btnHeight >= buttonsStartY && btnY <= buttonsEndY
+}
+
+func (cp *CommandPanel) updateButtonPositions() {
+	buttonsStartY := cp.topOffset + panelPadding + 20
+
+	for i, btn := range cp.buttons {
+		baseY := buttonsStartY + float64(i)*(buttonHeight+buttonMargin)
+		btn.Bounds.Pos.Y = baseY - cp.scrollOffset
+	}
+
+	buildingCount := len(cp.buttons)
+	for i, btn := range cp.unitButtons {
+		baseY := buttonsStartY + float64(buildingCount+i)*(buttonHeight+buttonMargin)
+		btn.Bounds.Pos.Y = baseY - cp.scrollOffset
+	}
 }
 func (cp *CommandPanel) IsVisible() bool {
 	return cp.visible
@@ -217,6 +283,7 @@ func (cp *CommandPanel) SetVisible(visible bool) {
 		cp.unitButtons = nil
 		cp.title = ""
 		cp.selectedFactory = nil
+		cp.scrollOffset = 0
 	}
 }
 func (cp *CommandPanel) SetBuildOptions(units []*entity.Unit) {
@@ -225,6 +292,7 @@ func (cp *CommandPanel) SetBuildOptions(units []*entity.Unit) {
 	cp.title = ""
 	cp.visible = false
 	cp.selectedFactory = nil
+	cp.scrollOffset = 0
 	var constructor *entity.Unit
 	selectedCount := 0
 	for _, u := range units {
@@ -241,18 +309,19 @@ func (cp *CommandPanel) SetBuildOptions(units []*entity.Unit) {
 	cp.visible = true
 	cp.title = "BUILD"
 	options := constructor.GetBuildOptions()
-	y := cp.topOffset + panelPadding + 20
-	for _, def := range options {
+	for i, def := range options {
 		btn := NewCommandButton(
 			panelPadding,
-			y,
+			0,
 			commandPanelWidth-panelPadding*2,
 			buttonHeight,
 			def,
 		)
 		cp.buttons = append(cp.buttons, btn)
-		y += buttonHeight + buttonMargin
+		_ = i
 	}
+	cp.calculateScrollBounds()
+	cp.updateButtonPositions()
 }
 func (cp *CommandPanel) SetFactoryOptions(factory *entity.Building) {
 	cp.buttons = nil
@@ -260,6 +329,7 @@ func (cp *CommandPanel) SetFactoryOptions(factory *entity.Building) {
 	cp.title = ""
 	cp.visible = false
 	cp.selectedFactory = nil
+	cp.scrollOffset = 0
 	if factory == nil || !factory.CanProduce() {
 		return
 	}
@@ -267,20 +337,50 @@ func (cp *CommandPanel) SetFactoryOptions(factory *entity.Building) {
 	cp.selectedFactory = factory
 	cp.title = "PRODUCE"
 	options := entity.GetProducibleUnits(factory.Type)
-	y := cp.topOffset + panelPadding + 20
-	for _, def := range options {
+	for i, def := range options {
 		btn := NewUnitButton(
 			panelPadding,
-			y,
+			0,
 			commandPanelWidth-panelPadding*2,
 			buttonHeight,
 			def,
 		)
 		btn.QueueCount = factory.GetQueueCount(def.Type)
 		cp.unitButtons = append(cp.unitButtons, btn)
-		y += buttonHeight + buttonMargin
+		_ = i
 	}
+	cp.calculateScrollBounds()
+	cp.updateButtonPositions()
 }
+
+func (cp *CommandPanel) SetBuildingBuildOptions(building *entity.Building) {
+	cp.buttons = nil
+	cp.unitButtons = nil
+	cp.title = ""
+	cp.visible = false
+	cp.selectedFactory = nil
+	cp.scrollOffset = 0
+	if building == nil || building.Def == nil || len(building.Def.BuildableStructures) == 0 {
+		return
+	}
+	cp.visible = true
+	cp.title = "BUILD"
+	options := entity.GetBuildableStructures(building.Type)
+	for i, def := range options {
+		btn := NewCommandButton(
+			panelPadding,
+			0,
+			commandPanelWidth-panelPadding*2,
+			buttonHeight,
+			def,
+		)
+		cp.buttons = append(cp.buttons, btn)
+		_ = i
+	}
+	cp.calculateScrollBounds()
+	cp.updateButtonPositions()
+}
+
 func (cp *CommandPanel) UpdateQueueCounts() {
 	if cp.selectedFactory == nil {
 		return
@@ -295,6 +395,10 @@ func (cp *CommandPanel) Update(mousePos emath.Vec2, leftClicked bool) *entity.Bu
 	}
 	var clickedDef *entity.BuildingDef
 	for _, btn := range cp.buttons {
+		if !cp.isButtonVisible(btn.Bounds.Pos.Y, btn.Bounds.Size.Y) {
+			btn.State = ButtonNormal
+			continue
+		}
 		if btn.Contains(mousePos) {
 			if leftClicked {
 				btn.State = ButtonPressed
@@ -307,6 +411,10 @@ func (cp *CommandPanel) Update(mousePos emath.Vec2, leftClicked bool) *entity.Bu
 		}
 	}
 	for _, btn := range cp.unitButtons {
+		if !cp.isButtonVisible(btn.Bounds.Pos.Y, btn.Bounds.Size.Y) {
+			btn.State = ButtonNormal
+			continue
+		}
 		if btn.Contains(mousePos) {
 			if !leftClicked {
 				btn.State = ButtonHovered
@@ -323,6 +431,9 @@ func (cp *CommandPanel) GetHoveredBuilding(mousePos emath.Vec2) *entity.Building
 		return nil
 	}
 	for _, btn := range cp.buttons {
+		if !cp.isButtonVisible(btn.Bounds.Pos.Y, btn.Bounds.Size.Y) {
+			continue
+		}
 		if btn.Contains(mousePos) {
 			return btn.BuildingDef
 		}
@@ -335,6 +446,9 @@ func (cp *CommandPanel) GetHoveredUnit(mousePos emath.Vec2) *entity.UnitDef {
 		return nil
 	}
 	for _, btn := range cp.unitButtons {
+		if !cp.isButtonVisible(btn.Bounds.Pos.Y, btn.Bounds.Size.Y) {
+			continue
+		}
 		if btn.Contains(mousePos) {
 			return btn.UnitDef
 		}
@@ -347,11 +461,17 @@ func (cp *CommandPanel) GetHoveredButtonBounds(mousePos emath.Vec2) *emath.Rect 
 		return nil
 	}
 	for _, btn := range cp.buttons {
+		if !cp.isButtonVisible(btn.Bounds.Pos.Y, btn.Bounds.Size.Y) {
+			continue
+		}
 		if btn.Contains(mousePos) {
 			return &btn.Bounds
 		}
 	}
 	for _, btn := range cp.unitButtons {
+		if !cp.isButtonVisible(btn.Bounds.Pos.Y, btn.Bounds.Size.Y) {
+			continue
+		}
 		if btn.Contains(mousePos) {
 			return &btn.Bounds
 		}
@@ -364,6 +484,10 @@ func (cp *CommandPanel) UpdateUnit(mousePos emath.Vec2, leftClicked bool) *entit
 	}
 	var clickedDef *entity.UnitDef
 	for _, btn := range cp.unitButtons {
+		if !cp.isButtonVisible(btn.Bounds.Pos.Y, btn.Bounds.Size.Y) {
+			btn.State = ButtonNormal
+			continue
+		}
 		if btn.Contains(mousePos) {
 			if leftClicked {
 				btn.State = ButtonPressed
@@ -382,6 +506,9 @@ func (cp *CommandPanel) UpdateUnitRightClick(mousePos emath.Vec2, rightClicked b
 		return nil
 	}
 	for _, btn := range cp.unitButtons {
+		if !cp.isButtonVisible(btn.Bounds.Pos.Y, btn.Bounds.Size.Y) {
+			continue
+		}
 		if btn.Contains(mousePos) && btn.QueueCount > 0 {
 			return btn.UnitDef
 		}
@@ -400,10 +527,48 @@ func (cp *CommandPanel) Draw(screen *ebiten.Image, resources *resource.Manager) 
 	}
 	cp.panel.Draw(screen)
 	ebitenutil.DebugPrintAt(screen, cp.title, int(panelPadding), int(cp.topOffset+panelPadding))
+
 	for _, btn := range cp.buttons {
-		btn.Draw(screen, resources)
+		if cp.isButtonVisible(btn.Bounds.Pos.Y, buttonHeight) {
+			btn.Draw(screen, resources)
+		}
 	}
+
 	for _, btn := range cp.unitButtons {
-		btn.Draw(screen, resources)
+		if cp.isButtonVisible(btn.Bounds.Pos.Y, buttonHeight) {
+			btn.Draw(screen, resources)
+		}
 	}
+
+	if cp.maxScrollOffset > 0 {
+		buttonsStartY := cp.topOffset + panelPadding + 20
+		cp.drawScrollIndicator(screen, buttonsStartY)
+	}
+}
+
+func (cp *CommandPanel) drawScrollIndicator(screen *ebiten.Image, startY float64) {
+	indicatorWidth := 4.0
+	indicatorX := commandPanelWidth - indicatorWidth - 2
+	endY := cp.topOffset + cp.panel.Bounds.Size.Y - panelPadding
+	trackHeight := endY - startY
+
+	trackColor := color.RGBA{40, 40, 50, 255}
+	vector.FillRect(screen, float32(indicatorX), float32(startY),
+		float32(indicatorWidth), float32(trackHeight), trackColor, false)
+
+	visibleRatio := cp.visibleHeight / cp.contentHeight
+	thumbHeight := trackHeight * visibleRatio
+	if thumbHeight < 20 {
+		thumbHeight = 20
+	}
+
+	scrollRatio := 0.0
+	if cp.maxScrollOffset > 0 {
+		scrollRatio = cp.scrollOffset / cp.maxScrollOffset
+	}
+	thumbY := startY + (trackHeight-thumbHeight)*scrollRatio
+
+	thumbColor := color.RGBA{100, 100, 120, 255}
+	vector.FillRect(screen, float32(indicatorX), float32(thumbY),
+		float32(indicatorWidth), float32(thumbHeight), thumbColor, false)
 }

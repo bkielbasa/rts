@@ -2,12 +2,13 @@ package ui
 
 import (
 	"fmt"
+	"image/color"
+
 	"github.com/bklimczak/tanks/engine/entity"
 	emath "github.com/bklimczak/tanks/engine/math"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
-	"image/color"
 )
 
 const (
@@ -115,12 +116,8 @@ func (ip *InfoPanel) Draw(screen *ebiten.Image) {
 		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("+%.0f Energy/s", def.EnergyProduction), x, y)
 		y += infoLineHeight
 	}
-	if def.CreditsProduction > 0 {
-		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("+%.0f Credits/s", def.CreditsProduction), x, y)
-		y += infoLineHeight
-	}
-	if def.AlloysProduction > 0 {
-		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("+%.0f Alloys/s", def.AlloysProduction), x, y)
+	if def.MetalProduction > 0 {
+		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("+%.0f Metal/s", def.MetalProduction), x, y)
 		y += infoLineHeight
 	}
 
@@ -128,8 +125,8 @@ func (ip *InfoPanel) Draw(screen *ebiten.Image) {
 		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("-%.0f Energy/s", def.EnergyConsumption), x, y)
 		y += infoLineHeight
 	}
-	if def.CreditsConsumption > 0 {
-		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("-%.0f Credits/s", def.CreditsConsumption), x, y)
+	if def.MetalConsumption > 0 {
+		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("-%.0f Metal/s", def.MetalConsumption), x, y)
 		y += infoLineHeight
 	}
 
@@ -155,19 +152,16 @@ func GetBuildingStats(def *entity.BuildingDef) string {
 	if def.EnergyProduction > 0 {
 		stats += fmt.Sprintf("+%.0fE/s ", def.EnergyProduction)
 	}
-	if def.CreditsProduction > 0 {
-		stats += fmt.Sprintf("+%.0fC/s ", def.CreditsProduction)
-	}
-	if def.AlloysProduction > 0 {
-		stats += fmt.Sprintf("+%.0fA/s ", def.AlloysProduction)
+	if def.MetalProduction > 0 {
+		stats += fmt.Sprintf("+%.0fM/s ", def.MetalProduction)
 	}
 	if def.EnergyConsumption > 0 {
 		stats += fmt.Sprintf("-%.0fE/s ", def.EnergyConsumption)
 	}
-	if def.CreditsConsumption > 0 {
-		stats += fmt.Sprintf("-%.0fC/s ", def.CreditsConsumption)
+	if def.MetalConsumption > 0 {
+		stats += fmt.Sprintf("-%.0fM/s ", def.MetalConsumption)
 	}
-	if def.EnergyStorage > 0 || def.CreditsStorage > 0 || def.AlloysStorage > 0 {
+	if def.EnergyStorage > 0 || def.MetalStorage > 0 {
 		stats += "Storage "
 	}
 	return stats

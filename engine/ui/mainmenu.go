@@ -2,20 +2,20 @@ package ui
 
 import (
 	"fmt"
+	"image/color"
+	"strings"
+
 	emath "github.com/bklimczak/tanks/engine/math"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
-	"image/color"
-	"strings"
 )
 
 type MenuOption int
 
 const (
-	MenuOptionCampaign MenuOption = iota
-	MenuOptionSkirmish
-	MenuOptionLoadGame
+	MenuOptionSkirmish MenuOption = iota
+	MenuOptionMultiplayer
 	MenuOptionExit
 	MenuOptionCount
 )
@@ -36,8 +36,8 @@ func NewMainMenu() *MainMenu {
 	return &MainMenu{
 		screenWidth:  1280,
 		screenHeight: 720,
-		selected:     MenuOptionCampaign,
-		options:      []string{"Campaign", "Skirmish", "Load Game", "Exit"},
+		selected:     MenuOptionSkirmish,
+		options:      []string{"Start Game", "Multiplayer", "Exit"},
 	}
 }
 func (m *MainMenu) UpdateSize(width, height float64) {

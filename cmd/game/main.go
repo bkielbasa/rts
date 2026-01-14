@@ -11,14 +11,13 @@ import (
 	"github.com/bklimczak/tanks/engine"
 	"github.com/bklimczak/tanks/engine/ai"
 	"github.com/bklimczak/tanks/engine/assets"
-	"github.com/bklimczak/tanks/engine/campaign"
 	"github.com/bklimczak/tanks/engine/entity"
 	"github.com/bklimczak/tanks/engine/fog"
 	"github.com/bklimczak/tanks/engine/input"
 	emath "github.com/bklimczak/tanks/engine/math"
+	"github.com/bklimczak/tanks/engine/network"
 	"github.com/bklimczak/tanks/engine/render"
 	"github.com/bklimczak/tanks/engine/resource"
-	"github.com/bklimczak/tanks/engine/save"
 	"github.com/bklimczak/tanks/engine/terrain"
 	"github.com/bklimczak/tanks/engine/ui"
 	"github.com/hajimehoshi/ebiten/v2"
@@ -30,12 +29,13 @@ type GameState int
 
 const (
 	StateMenu GameState = iota
-	StateCampaignMenu
-	StateMissionBriefing
 	StatePlaying
 	StatePaused
 	StateVictory
 	StateDefeat
+	StateMultiplayerLobby
+	StateMultiplayerRoom
+	StateMultiplayerPlaying
 )
 const (
 	unitSize         = 20.0
@@ -53,48 +53,49 @@ const (
 )
 
 type Game struct {
-	engine            *engine.Engine
-	units             []*entity.Unit
-	buildings         []*entity.Building
-	wreckages         []*entity.Wreckage
-	projectiles       []*entity.Projectile
-	terrainMap        *terrain.Map
-	fogOfWar          *fog.FogOfWar
-	resourceBar       *ui.ResourceBar
-	commandPanel      *ui.CommandPanel
-	minimap           *ui.Minimap
-	mainMenu          *ui.MainMenu
-	tooltip           *ui.Tooltip
-	infoPanel         *ui.InfoPanel
-	pauseMenu         *ui.PauseMenu
-	saveMenu          *ui.SaveMenu
-	campaignMenu      *ui.CampaignMenu
-	missionBriefing   *ui.MissionBriefing
-	enemyAI           *ai.EnemyAI
-	assets            *assets.Manager
-	entityRenderer    *render.EntityRenderer
-	tankFactorySprite *ebiten.Image
-	tileImages        map[color.RGBA]*ebiten.Image
-	terrainCache      *ebiten.Image
-	screenWidth       int
-	screenHeight      int
-	debugTerrainTime  time.Duration
-	debugMinimapTime  time.Duration
-	debugFogTiles     int
-	nextUnitID        uint64
-	nextBuildingID    uint64
-	nextWreckageID    uint64
-	nextProjectileID  uint64
-	state             GameState
-	placementMode     bool
-	placementDef      *entity.BuildingDef
-	placementValid    bool
-	saveManager       *save.Manager
-	campaignManager   *campaign.Manager
-	currentCampaign   string
-	currentMission    *campaign.Mission
-	isSkirmishMode    bool
-	elapsedTime       float64
+	engine             *engine.Engine
+	units              []*entity.Unit
+	buildings          []*entity.Building
+	playerNexus        *entity.Building
+	wreckages          []*entity.Wreckage
+	projectiles        []*entity.Projectile
+	terrainMap         *terrain.Map
+	mapConfig          *terrain.MapConfig
+	fogOfWar           *fog.FogOfWar
+	resourceBar        *ui.ResourceBar
+	commandPanel       *ui.CommandPanel
+	minimap            *ui.Minimap
+	mainMenu           *ui.MainMenu
+	tooltip            *ui.Tooltip
+	infoPanel          *ui.InfoPanel
+	pauseMenu          *ui.PauseMenu
+	lobbyBrowser       *ui.LobbyBrowser
+	lobbyRoom          *ui.LobbyRoom
+	networkClient      *network.Client
+	enemyAI            *ai.EnemyAI
+	assets             *assets.Manager
+	entityRenderer     *render.EntityRenderer
+	tankFactorySprite  *ebiten.Image
+	tileImages         map[color.RGBA]*ebiten.Image
+	grassTileScaled    *ebiten.Image
+	terrainCache       *ebiten.Image
+	screenWidth        int
+	screenHeight       int
+	debugTerrainTime   time.Duration
+	debugMinimapTime   time.Duration
+	debugFogTiles      int
+	nextUnitID         uint64
+	nextBuildingID     uint64
+	nextWreckageID     uint64
+	nextProjectileID   uint64
+	state              GameState
+	placementMode      bool
+	placementDef       *entity.BuildingDef
+	placementValid     bool
+	elapsedTime        float64
+	mpPlayerSlot       int
+	mpIsReady          bool
+	mpCameraPositioned bool
 }
 
 func NewGame() *Game {
@@ -104,25 +105,29 @@ func NewGame() *Game {
 	minimap := ui.NewMinimap(minimapMargin, minimapY, minimapWidth, minimapHeight)
 	mainMenu := ui.NewMainMenu()
 	pauseMenu := ui.NewPauseMenu()
-	saveMenu := ui.NewSaveMenu()
-	campaignMenu := ui.NewCampaignMenu()
-	missionBriefing := ui.NewMissionBriefing()
 
 	assetManager := assets.NewManager("assets")
+	terrain.LoadSprites()
 
 	tankFactorySprite, _, err := ebitenutil.NewImageFromFile("assets/tank_factory.png")
 	if err != nil {
 		log.Printf("Warning: could not load tank factory sprite: %v", err)
 	}
-	terrainMap, err := terrain.LoadMapFromFile("maps/default.yaml")
+
+	// Load map configuration
+	var mapConfig *terrain.MapConfig
+	var terrainMap *terrain.Map
+
+	mapConfig, err = terrain.LoadMapConfig("maps/skirmish.yaml")
 	if err != nil {
+		log.Printf("Map config not found, using default: %v", err)
 		terrainMap = terrain.NewMap(worldWidth, worldHeight)
 		terrainMap.Generate(42)
 		terrainMap.PlaceMetalDeposit(400, 150)
-		if saveErr := terrain.SaveMapToFile(terrainMap, "maps/default.yaml", "Default Map", "Auto-generated default map", "System"); saveErr != nil {
-			log.Printf("Warning: could not save map file: %v", saveErr)
-		}
+	} else {
+		terrainMap = mapConfig.ToMap()
 	}
+
 	actualWorldWidth := terrainMap.PixelWidth
 	actualWorldHeight := terrainMap.PixelHeight
 	minimap.SetWorldSize(actualWorldWidth, actualWorldHeight)
@@ -130,46 +135,43 @@ func NewGame() *Game {
 	tooltip.SetScreenSize(baseWidth, baseHeight)
 	infoPanel := ui.NewInfoPanel(baseWidth, baseHeight)
 
-	saveManager, err := save.NewManager()
-	if err != nil {
-		log.Printf("Warning: could not initialize save manager: %v", err)
-	}
-	campaignManager, err := campaign.NewManager("campaigns")
-	if err != nil {
-		log.Printf("Warning: could not load campaigns: %v", err)
-	}
-
 	eng := engine.New(actualWorldWidth, actualWorldHeight, baseWidth, baseHeight)
 	entityRenderer := render.NewEntityRenderer(eng.Renderer, assetManager)
+
+	lobbyBrowser := ui.NewLobbyBrowser()
+	lobbyRoom := ui.NewLobbyRoom()
 
 	g := &Game{
 		engine:            eng,
 		terrainMap:        terrainMap,
+		mapConfig:         mapConfig,
 		fogOfWar:          fog.New(actualWorldWidth, actualWorldHeight, terrain.TileSize),
 		resourceBar:       resourceBar,
 		commandPanel:      commandPanel,
 		minimap:           minimap,
 		mainMenu:          mainMenu,
 		pauseMenu:         pauseMenu,
-		saveMenu:          saveMenu,
-		campaignMenu:      campaignMenu,
-		missionBriefing:   missionBriefing,
+		lobbyBrowser:      lobbyBrowser,
+		lobbyRoom:         lobbyRoom,
 		tooltip:           tooltip,
 		infoPanel:         infoPanel,
 		assets:            assetManager,
 		entityRenderer:    entityRenderer,
 		tankFactorySprite: tankFactorySprite,
 		state:             StateMenu,
-		saveManager:       saveManager,
-		campaignManager:   campaignManager,
+		screenWidth:       int(baseWidth),
+		screenHeight:      int(baseHeight),
+		mpPlayerSlot:      -1,
 	}
 	g.engine.Collision.SetTerrain(terrainMap)
-	if campaignManager != nil {
-		g.campaignMenu.SetCampaignManager(campaignManager)
-	}
 
-	g.setupPlayerBase()
-	g.setupEnemyBase()
+	// Load entities from map config or use legacy setup
+	if mapConfig != nil {
+		g.loadEntitiesFromConfig(mapConfig)
+	} else {
+		g.setupPlayerBase()
+		g.setupEnemyBase()
+	}
 
 	return g
 }
@@ -183,6 +185,7 @@ func (g *Game) setupPlayerBase() {
 	commandNexus.Completed = true
 	commandNexus.BuildProgress = 1.0
 	g.buildings = append(g.buildings, commandNexus)
+	g.playerNexus = commandNexus
 	g.nextBuildingID++
 	g.applyBuildingEffects(nexusDef)
 
@@ -195,12 +198,6 @@ func (g *Game) setupPlayerBase() {
 	g.buildings = append(g.buildings, solarArray)
 	g.nextBuildingID++
 	g.applyBuildingEffects(solarDef)
-
-	constructorDef := entity.UnitDefs[entity.UnitTypeConstructor]
-	constructorX, constructorY := g.findPassablePosition(startX+nexusDef.Size/2, startY+nexusDef.Size+20)
-	constructor := entity.NewUnitFromDef(g.nextUnitID, constructorX, constructorY, constructorDef, entity.FactionPlayer)
-	g.units = append(g.units, constructor)
-	g.nextUnitID++
 
 	tankDef := entity.UnitDefs[entity.UnitTypeTank]
 	for i := 0; i < 2; i++ {
@@ -255,6 +252,184 @@ func (g *Game) setupEnemyBase() {
 	g.units = append(g.units, enemyScout)
 	g.nextUnitID++
 }
+
+func (g *Game) loadEntitiesFromConfig(config *terrain.MapConfig) {
+	for _, factionConfig := range config.Factions {
+		faction := g.getFactionFromConfig(factionConfig.Type)
+
+		// Set starting resources for player
+		if factionConfig.Type == "player" && factionConfig.Resources != nil {
+			g.engine.Resources.Get(resource.Metal).Current = factionConfig.Resources.Metal
+			g.engine.Resources.Get(resource.Energy).Current = factionConfig.Resources.Energy
+		}
+
+		// Load buildings
+		for _, buildingConfig := range factionConfig.Buildings {
+			building := g.createBuildingFromConfig(buildingConfig, faction)
+			if building != nil {
+				g.buildings = append(g.buildings, building)
+				g.nextBuildingID++
+
+				// Track player's Command Nexus
+				if faction == entity.FactionPlayer && building.Type == entity.BuildingCommandNexus {
+					g.playerNexus = building
+				}
+
+				// Apply building effects if completed
+				if building.Completed {
+					g.applyBuildingEffects(building.Def)
+				}
+			}
+		}
+
+		// Load units
+		for _, unitConfig := range factionConfig.Units {
+			count := unitConfig.Count
+			if count <= 0 {
+				count = 1
+			}
+			for i := 0; i < count; i++ {
+				offsetX := float64(i%3) * 40
+				offsetY := float64(i/3) * 40
+				unit := g.createUnitFromConfig(unitConfig, faction, offsetX, offsetY)
+				if unit != nil {
+					g.units = append(g.units, unit)
+					g.nextUnitID++
+				}
+			}
+		}
+
+		// Setup AI for enemy factions
+		if factionConfig.Type == "ai" && len(factionConfig.Buildings) > 0 {
+			// Find the Command Nexus position for AI base
+			for _, b := range factionConfig.Buildings {
+				if b.Type == "CommandNexus" {
+					g.enemyAI = ai.NewEnemyAI(b.X, b.Y)
+					break
+				}
+			}
+		}
+	}
+}
+
+func (g *Game) getFactionFromConfig(factionType string) entity.Faction {
+	switch factionType {
+	case "player":
+		return entity.FactionPlayer
+	case "ai":
+		return entity.FactionEnemy
+	default:
+		return entity.FactionNeutral
+	}
+}
+
+func (g *Game) createBuildingFromConfig(config terrain.BuildingConfig, faction entity.Faction) *entity.Building {
+	buildingType := g.getBuildingTypeFromString(config.Type)
+	def := entity.BuildingDefs[buildingType]
+	if def == nil {
+		log.Printf("Warning: unknown building type %s", config.Type)
+		return nil
+	}
+
+	x, y := g.findPassablePosition(config.X, config.Y)
+	building := entity.NewBuilding(g.nextBuildingID, x, y, def)
+	building.Faction = faction
+
+	if faction == entity.FactionEnemy {
+		building.Color = entity.GetFactionTintedColor(def.Color, faction)
+	}
+
+	// Buildings from config default to completed unless specified otherwise
+	completed := config.Completed
+	if !config.Completed && config.Type != "" {
+		completed = true // Default to completed for pre-placed buildings
+	}
+	if completed {
+		building.Completed = true
+		building.BuildProgress = 1.0
+	}
+
+	return building
+}
+
+func (g *Game) createUnitFromConfig(config terrain.UnitConfig, faction entity.Faction, offsetX, offsetY float64) *entity.Unit {
+	var unitDef *entity.UnitDef
+
+	// Check for custom tank configuration
+	if config.Type == "Tank" && config.Color != "" && config.Hull > 0 && config.Gun > 0 {
+		unitDef = entity.CreateTankDef(config.Color, config.Hull, config.Gun)
+	} else {
+		unitType := g.getUnitTypeFromString(config.Type)
+		unitDef = entity.UnitDefs[unitType]
+	}
+
+	if unitDef == nil {
+		log.Printf("Warning: unknown unit type %s", config.Type)
+		return nil
+	}
+
+	x, y := g.findPassablePosition(config.X+offsetX, config.Y+offsetY)
+	return entity.NewUnitFromDef(g.nextUnitID, x, y, unitDef, faction)
+}
+
+func (g *Game) getBuildingTypeFromString(typeName string) entity.BuildingType {
+	switch typeName {
+	case "CommandNexus":
+		return entity.BuildingCommandNexus
+	case "SolarArray":
+		return entity.BuildingSolarArray
+	case "SolarPanel":
+		return entity.BuildingSolarPanel
+	case "FusionReactor":
+		return entity.BuildingFusionReactor
+	case "MetalExtractor", "OreExtractor":
+		return entity.BuildingMetalExtractor
+	case "AlloyFoundry":
+		return entity.BuildingAlloyFoundry
+	case "TanksFactory", "VehicleFactory", "TankFactory":
+		return entity.BuildingTanksFactory
+	case "HoverBay":
+		return entity.BuildingHoverBay
+	case "DataUplink":
+		return entity.BuildingDataUplink
+	case "Wall":
+		return entity.BuildingWall
+	case "AutocannonTurret":
+		return entity.BuildingAutocannonTurret
+	case "MissileBattery":
+		return entity.BuildingMissileBattery
+	case "LaserTower":
+		return entity.BuildingLaserTower
+	default:
+		return entity.BuildingCommandNexus
+	}
+}
+
+func (g *Game) getUnitTypeFromString(typeName string) entity.UnitType {
+	switch typeName {
+	case "Tank":
+		return entity.UnitTypeTank
+	case "Scout":
+		return entity.UnitTypeScout
+	case "HeavyTank":
+		return entity.UnitTypeHeavyTank
+	case "LightTank":
+		return entity.UnitTypeLightTank
+	case "Artillery":
+		return entity.UnitTypeArtillery
+	case "RocketTank":
+		return entity.UnitTypeRocketTank
+	case "FlameTank":
+		return entity.UnitTypeFlameTank
+	case "AAVehicle":
+		return entity.UnitTypeAAVehicle
+	case "Constructor":
+		return entity.UnitTypeConstructor
+	default:
+		return entity.UnitTypeTank
+	}
+}
+
 func (g *Game) findPassablePosition(x, y float64) (float64, float64) {
 	bounds := emath.NewRect(x, y, unitSize, unitSize)
 	if g.terrainMap.IsPassable(bounds) {
@@ -275,24 +450,21 @@ func (g *Game) findPassablePosition(x, y float64) (float64, float64) {
 func (g *Game) Update() error {
 	g.engine.Input.Update()
 	inputState := g.engine.Input.State()
-	if ebiten.IsFullscreen() {
-		g.screenWidth, g.screenHeight = ebiten.Monitor().Size()
-	} else {
-		g.screenWidth, g.screenHeight = ebiten.WindowSize()
-	}
 	switch g.state {
 	case StateMenu:
 		return g.updateMenu(inputState)
-	case StateCampaignMenu:
-		return g.updateCampaignMenu(inputState)
-	case StateMissionBriefing:
-		return g.updateMissionBriefing(inputState)
 	case StatePlaying:
 		return g.updatePlaying(inputState)
 	case StatePaused:
 		return g.updatePaused(inputState)
 	case StateVictory, StateDefeat:
 		return g.updateEndScreen(inputState)
+	case StateMultiplayerLobby:
+		return g.updateMultiplayerLobby(inputState)
+	case StateMultiplayerRoom:
+		return g.updateMultiplayerRoom(inputState)
+	case StateMultiplayerPlaying:
+		return g.updateMultiplayerPlaying(inputState)
 	}
 	return nil
 }
@@ -310,6 +482,7 @@ func (g *Game) updateEndScreen(inputState input.State) error {
 func (g *Game) resetGame() {
 	g.units = nil
 	g.buildings = nil
+	g.playerNexus = nil
 	g.wreckages = nil
 	g.projectiles = nil
 	g.nextUnitID = 0
@@ -319,6 +492,7 @@ func (g *Game) resetGame() {
 	g.placementMode = false
 	g.placementDef = nil
 	g.terrainCache = nil
+	g.enemyAI = nil
 
 	g.engine.Resources = resource.NewManager()
 
@@ -326,8 +500,13 @@ func (g *Game) resetGame() {
 	actualWorldHeight := g.terrainMap.PixelHeight
 	g.fogOfWar = fog.New(actualWorldWidth, actualWorldHeight, terrain.TileSize)
 
-	g.setupPlayerBase()
-	g.setupEnemyBase()
+	// Load entities from map config or use legacy setup
+	if g.mapConfig != nil {
+		g.loadEntitiesFromConfig(g.mapConfig)
+	} else {
+		g.setupPlayerBase()
+		g.setupEnemyBase()
+	}
 }
 
 func (g *Game) updateMenu(inputState input.State) error {
@@ -350,119 +529,554 @@ func (g *Game) updateMenu(inputState input.State) error {
 }
 func (g *Game) handleMenuSelection(option ui.MenuOption) error {
 	switch option {
-	case ui.MenuOptionCampaign:
-		if g.campaignManager != nil {
-			campaigns := g.campaignManager.GetCampaigns()
-			if len(campaigns) > 0 {
-				g.currentCampaign = campaigns[0].ID
-				missions := g.campaignManager.GetCampaignMissions(g.currentCampaign)
-				g.campaignMenu.Show(g.currentCampaign, missions)
-				g.state = StateCampaignMenu
-			}
-		}
 	case ui.MenuOptionSkirmish:
-		g.isSkirmishMode = true
-		g.currentMission = nil
 		g.resetGame()
 		g.state = StatePlaying
-	case ui.MenuOptionLoadGame:
-		g.saveMenu.Show(ui.SaveModeLoad, g.saveManager.ListSaves())
-		g.state = StatePaused
+	case ui.MenuOptionMultiplayer:
+		g.enterMultiplayerLobby()
 	case ui.MenuOptionExit:
 		return ebiten.Termination
 	}
 	return nil
 }
 
-func (g *Game) updateCampaignMenu(inputState input.State) error {
-	g.campaignMenu.UpdateSize(float64(g.screenWidth), float64(g.screenHeight))
-	g.campaignMenu.UpdateHover(inputState.MousePos)
+func (g *Game) enterMultiplayerLobby() {
+	g.state = StateMultiplayerLobby
+	g.lobbyBrowser.SetConnecting(true)
+	g.lobbyBrowser.ClearError()
 
-	if inputState.LeftJustPressed {
-		if mission := g.campaignMenu.HandleClick(inputState.MousePos); mission != nil {
-			g.currentMission = mission
-			g.missionBriefing.Show(mission)
-			g.state = StateMissionBriefing
-			return nil
-		}
+	// Create network client if not exists
+	if g.networkClient == nil {
+		g.networkClient = network.NewClient("Player")
 	}
 
-	selectedMission, cancelled := g.campaignMenu.Update(
-		inputState.MenuUp,
-		inputState.MenuDown,
-		inputState.EnterPressed,
-		inputState.EscapePressed,
-	)
+	// Connect to server in background
+	go func() {
+		err := g.networkClient.Connect("localhost:8080")
+		if err != nil {
+			g.lobbyBrowser.SetError(err.Error())
+			g.lobbyBrowser.SetConnecting(false)
+			return
+		}
+		g.lobbyBrowser.SetConnecting(false)
+		g.networkClient.RequestLobbyList()
+	}()
+}
 
-	if cancelled {
-		g.campaignMenu.Hide()
+func (g *Game) updateMultiplayerLobby(inputState input.State) error {
+	g.lobbyBrowser.UpdateSize(float64(g.screenWidth), float64(g.screenHeight))
+
+	if inputState.EscapePressed {
+		if g.networkClient != nil {
+			g.networkClient.Disconnect()
+		}
 		g.state = StateMenu
 		return nil
 	}
 
-	if selectedMission != nil {
-		g.currentMission = selectedMission
-		g.missionBriefing.Show(selectedMission)
-		g.state = StateMissionBriefing
+	// Update lobby list from network client
+	if g.networkClient != nil && g.networkClient.IsConnected() {
+		lobbies := g.networkClient.GetLobbies()
+		uiLobbies := make([]ui.LobbyInfo, len(lobbies))
+		for i, l := range lobbies {
+			uiLobbies[i] = ui.LobbyInfo{
+				ID:          l.ID,
+				Name:        l.Name,
+				PlayerCount: len(l.Players),
+				MaxPlayers:  l.MaxPlayers,
+				State:       l.State,
+			}
+		}
+		g.lobbyBrowser.SetLobbies(uiLobbies)
+
+		// Check for errors
+		if err := g.networkClient.GetLastError(); err != "" {
+			g.lobbyBrowser.SetError(err)
+			g.networkClient.ClearError()
+		}
+
+		// Check if we joined a lobby
+		if g.networkClient.InLobby() {
+			g.state = StateMultiplayerRoom
+			return nil
+		}
+	}
+
+	g.lobbyBrowser.UpdateHover(inputState.MousePos)
+
+	if inputState.LeftJustPressed {
+		action := g.lobbyBrowser.HandleClick(inputState.MousePos)
+		return g.handleLobbyBrowserAction(action)
+	}
+
+	action := g.lobbyBrowser.Update(inputState.MenuUp, inputState.MenuDown, inputState.EnterPressed)
+	return g.handleLobbyBrowserAction(action)
+}
+
+func (g *Game) handleLobbyBrowserAction(action ui.LobbyBrowserAction) error {
+	switch action {
+	case ui.LobbyActionBack:
+		if g.networkClient != nil {
+			g.networkClient.Disconnect()
+		}
+		g.state = StateMenu
+	case ui.LobbyActionRefresh:
+		if g.networkClient != nil && g.networkClient.IsConnected() {
+			g.networkClient.RequestLobbyList()
+		}
+	case ui.LobbyActionCreate:
+		if g.networkClient != nil && g.networkClient.IsConnected() {
+			g.networkClient.CreateLobby("New Game", 4)
+		}
+	case ui.LobbyActionJoin:
+		if g.networkClient != nil && g.networkClient.IsConnected() {
+			if lobby := g.lobbyBrowser.GetSelectedLobby(); lobby != nil {
+				g.networkClient.JoinLobby(lobby.ID)
+			}
+		}
+	}
+	return nil
+}
+
+func (g *Game) updateMultiplayerRoom(inputState input.State) error {
+	g.lobbyRoom.UpdateSize(float64(g.screenWidth), float64(g.screenHeight))
+
+	if inputState.EscapePressed {
+		if g.networkClient != nil {
+			g.networkClient.LeaveLobby()
+		}
+		g.state = StateMultiplayerLobby
+		return nil
+	}
+
+	// Update room state from network client
+	if g.networkClient != nil && g.networkClient.IsConnected() {
+		lobby := g.networkClient.GetCurrentLobby()
+		if lobby != nil {
+			isHost := g.networkClient.IsHost()
+			g.lobbyRoom.SetLobby(lobby.ID, lobby.Name, lobby.MaxPlayers, isHost)
+
+			players := make([]ui.PlayerSlot, len(lobby.Players))
+			playerID := g.networkClient.GetPlayerID()
+			allReady := len(lobby.Players) >= 2
+			for i, p := range lobby.Players {
+				players[i] = ui.PlayerSlot{
+					Name:   p.Name,
+					Ready:  p.Ready,
+					IsHost: p.ID == lobby.HostID,
+					IsYou:  p.ID == playerID,
+				}
+				if !p.Ready {
+					allReady = false
+				}
+			}
+			g.lobbyRoom.SetPlayers(players)
+			g.lobbyRoom.SetCanStart(allReady && isHost)
+			g.mpPlayerSlot = g.networkClient.GetYourSlot()
+		}
+
+		// Check if game started
+		if g.networkClient.IsGameStarted() {
+			g.initMultiplayerTerrain()
+			g.state = StateMultiplayerPlaying
+			g.mpCameraPositioned = false
+			return nil
+		}
+
+		// Check if we left the lobby
+		if !g.networkClient.InLobby() {
+			g.state = StateMultiplayerLobby
+			return nil
+		}
+	}
+
+	if inputState.LeftJustPressed {
+		action := g.lobbyRoom.HandleClick(inputState.MousePos)
+		return g.handleLobbyRoomAction(action)
+	}
+
+	action := g.lobbyRoom.Update(inputState.EnterPressed)
+	return g.handleLobbyRoomAction(action)
+}
+
+func (g *Game) handleLobbyRoomAction(action ui.LobbyRoomAction) error {
+	switch action {
+	case ui.LobbyRoomActionLeave:
+		if g.networkClient != nil {
+			g.networkClient.LeaveLobby()
+		}
+		g.state = StateMultiplayerLobby
+	case ui.LobbyRoomActionReady:
+		if g.networkClient != nil {
+			g.mpIsReady = !g.mpIsReady
+			g.networkClient.SetReady(g.mpIsReady)
+			g.lobbyRoom.SetReady(g.mpIsReady)
+		}
+	case ui.LobbyRoomActionStart:
+		if g.networkClient != nil {
+			g.networkClient.StartGame()
+		}
+	}
+	return nil
+}
+
+func (g *Game) updateMultiplayerPlaying(inputState input.State) error {
+	if inputState.EscapePressed {
+		if g.placementMode {
+			g.placementMode = false
+			g.placementDef = nil
+		} else {
+			if g.networkClient != nil {
+				g.networkClient.LeaveLobby()
+				g.networkClient.ResetGameState()
+			}
+			g.state = StateMenu
+			return nil
+		}
+	}
+
+	// Update game state from server
+	if g.networkClient != nil && g.networkClient.IsConnected() {
+		gameState := g.networkClient.GetGameState()
+		if gameState != nil {
+			g.updateFromServerState(gameState)
+			g.updateFogOfWar()
+
+			// Position camera on player's base once we have units
+			if !g.mpCameraPositioned && len(g.buildings) > 0 {
+				g.positionCameraOnPlayerBase()
+				g.mpCameraPositioned = true
+			}
+		}
+
+		// Check for game end
+		if g.networkClient.IsGameEnded() {
+			endInfo := g.networkClient.GetGameEndInfo()
+			if endInfo != nil {
+				if endInfo.WinnerSlot == g.mpPlayerSlot {
+					g.state = StateVictory
+				} else {
+					g.state = StateDefeat
+				}
+			}
+			return nil
+		}
+	}
+
+	// Handle camera and input
+	g.engine.UpdateViewportSize(float64(g.screenWidth), float64(g.screenHeight))
+	g.resourceBar.UpdateWidth(float64(g.screenWidth))
+	g.commandPanel.UpdateHeight(float64(g.screenHeight))
+
+	cam := g.engine.Camera
+	topOffset := g.resourceBar.Height()
+	leftOffset := 0.0
+	if g.commandPanel.IsVisible() {
+		leftOffset = g.commandPanel.Width()
+	}
+	cam.HandleEdgeScroll(inputState.MousePos.X, inputState.MousePos.Y, topOffset, leftOffset)
+	cam.HandleKeyScroll(inputState.ScrollUp, inputState.ScrollDown, inputState.ScrollLeft, inputState.ScrollRight)
+
+	if inputState.MouseWheelY != 0 {
+		if g.commandPanel.Contains(inputState.MousePos) {
+			g.commandPanel.HandleScroll(inputState.MouseWheelY)
+		} else if inputState.MouseWheelY > 0 {
+			cam.ZoomIn(inputState.MousePos)
+		} else {
+			cam.ZoomOut(inputState.MousePos)
+		}
+	}
+
+	// Handle minimap clicks
+	if g.minimap.Contains(inputState.MousePos) {
+		if inputState.LeftJustPressed || inputState.LeftPressed {
+			worldPos := g.minimap.ScreenToWorld(inputState.MousePos)
+			cam.MoveTo(worldPos)
+		}
+		return nil
+	}
+
+	// Handle building placement mode
+	if g.placementMode {
+		worldPos := cam.ScreenToWorld(inputState.MousePos)
+		g.placementValid = g.canPlaceBuilding(worldPos, g.placementDef)
+		if inputState.RightJustPressed {
+			g.placementMode = false
+			g.placementDef = nil
+		}
+		if inputState.LeftJustPressed && g.placementValid {
+			if g.networkClient != nil {
+				g.networkClient.SendPlaceBuildingCommand(int(g.placementDef.Type), worldPos.X, worldPos.Y)
+			}
+			if !inputState.ShiftHeld {
+				g.placementMode = false
+				g.placementDef = nil
+			}
+		}
+		return nil
+	}
+
+	// Update info panel - do this early so it persists across interactions
+	selectedBuilding := g.getSelectedBuilding()
+	if selectedBuilding != nil {
+		g.infoPanel.SetBuilding(selectedBuilding)
+	} else {
+		g.infoPanel.Hide()
+	}
+
+	// Update command panel based on selection
+	factory := g.getSelectedFactory()
+	buildingWithStructures := g.getSelectedBuildingWithStructures()
+	if factory != nil {
+		g.commandPanel.SetFactoryOptions(factory)
+		g.commandPanel.UpdateQueueCounts()
+	} else if buildingWithStructures != nil {
+		g.commandPanel.SetBuildingBuildOptions(buildingWithStructures)
+	} else {
+		g.commandPanel.SetVisible(false)
+	}
+
+	// Handle command panel interactions
+	if g.commandPanel.Contains(inputState.MousePos) {
+		if inputState.LeftJustPressed {
+			if clickedUnit := g.commandPanel.UpdateUnit(inputState.MousePos, true); clickedUnit != nil {
+				if factory != nil && g.networkClient != nil {
+					g.networkClient.SendProduceUnitCommand(factory.ID, int(clickedUnit.Type))
+				}
+			} else if clickedDef := g.commandPanel.Update(inputState.MousePos, true); clickedDef != nil {
+				g.placementMode = true
+				g.placementDef = clickedDef
+			}
+		} else if inputState.RightJustPressed {
+			if clickedUnit := g.commandPanel.UpdateUnitRightClick(inputState.MousePos, true); clickedUnit != nil {
+				if factory != nil && g.networkClient != nil {
+					g.networkClient.SendCancelProductionCommand(factory.ID, int(clickedUnit.Type))
+				}
+			}
+		} else {
+			g.commandPanel.Update(inputState.MousePos, false)
+		}
+
+		// Handle tooltips
+		if hoveredBuilding := g.commandPanel.GetHoveredBuilding(inputState.MousePos); hoveredBuilding != nil {
+			bounds := g.commandPanel.GetHoveredButtonBounds(inputState.MousePos)
+			if bounds != nil {
+				g.tooltip.ShowBuilding(hoveredBuilding, bounds.Pos.X+bounds.Size.X+5, bounds.Pos.Y)
+			}
+		} else if hoveredUnit := g.commandPanel.GetHoveredUnit(inputState.MousePos); hoveredUnit != nil {
+			bounds := g.commandPanel.GetHoveredButtonBounds(inputState.MousePos)
+			if bounds != nil {
+				g.tooltip.ShowUnit(hoveredUnit, bounds.Pos.X+bounds.Size.X+5, bounds.Pos.Y)
+			}
+		} else {
+			g.tooltip.Hide()
+		}
+		return nil
+	}
+
+	g.tooltip.Hide()
+
+	// Handle unit selection and commands
+	g.handleMultiplayerSelection(inputState)
+	if inputState.RightJustPressed {
+		worldPos := cam.ScreenToWorld(inputState.MousePos)
+		g.handleMultiplayerCommand(worldPos)
 	}
 
 	return nil
 }
 
-func (g *Game) updateMissionBriefing(inputState input.State) error {
-	g.missionBriefing.UpdateSize(float64(g.screenWidth), float64(g.screenHeight))
-
-	start, cancelled := g.missionBriefing.Update(inputState.EnterPressed, inputState.EscapePressed)
-
-	if cancelled {
-		g.missionBriefing.Hide()
-		g.state = StateCampaignMenu
-		return nil
+func (g *Game) updateFromServerState(state *network.GameStatePayload) {
+	// Preserve selected unit IDs before rebuilding
+	selectedUnitIDs := make(map[uint64]bool)
+	for _, u := range g.units {
+		if u.Selected {
+			selectedUnitIDs[u.ID] = true
+		}
 	}
 
-	if start && g.currentMission != nil {
-		g.missionBriefing.Hide()
-		g.isSkirmishMode = false
-		g.startMission(g.currentMission)
-		g.state = StatePlaying
+	// Preserve selected building IDs before rebuilding
+	selectedBuildingIDs := make(map[uint64]bool)
+	for _, b := range g.buildings {
+		if b.Selected {
+			selectedBuildingIDs[b.ID] = true
+		}
 	}
 
-	return nil
+	// Clear and rebuild units from server state
+	g.units = make([]*entity.Unit, 0, len(state.Units))
+	for _, u := range state.Units {
+		unitType := entity.UnitType(u.Type)
+		unitDef := entity.UnitDefs[unitType]
+		if unitDef == nil {
+			continue
+		}
+		faction := g.getFactionFromSlot(u.OwnerSlot)
+		unit := entity.NewUnitFromDef(u.ID, u.X, u.Y, unitDef, faction)
+		unit.Angle = u.Angle
+		unit.Health = u.Health
+		unit.MaxHealth = u.MaxHealth
+		unit.Selected = selectedUnitIDs[u.ID]
+		g.units = append(g.units, unit)
+	}
+
+	// Clear and rebuild buildings from server state
+	g.buildings = make([]*entity.Building, 0, len(state.Buildings))
+	for _, b := range state.Buildings {
+		buildingType := entity.BuildingType(b.Type)
+		buildingDef := entity.BuildingDefs[buildingType]
+		if buildingDef == nil {
+			continue
+		}
+		faction := g.getFactionFromSlot(b.OwnerSlot)
+		building := entity.NewBuilding(b.ID, b.X, b.Y, buildingDef)
+		building.Faction = faction
+		building.Health = b.Health
+		building.MaxHealth = b.MaxHealth
+		building.Completed = b.Completed
+		building.BuildProgress = b.BuildProgress
+		building.Selected = selectedBuildingIDs[b.ID]
+		if faction != entity.FactionPlayer {
+			building.Color = entity.GetFactionTintedColor(buildingDef.Color, faction)
+		}
+		g.buildings = append(g.buildings, building)
+	}
+
+	// Clear and rebuild projectiles from server state
+	g.projectiles = make([]*entity.Projectile, 0, len(state.Projectiles))
+	for _, p := range state.Projectiles {
+		faction := g.getFactionFromSlot(p.OwnerSlot)
+		projectile := &entity.Projectile{
+			Entity: entity.Entity{
+				ID:       p.ID,
+				Position: emath.Vec2{X: p.X, Y: p.Y},
+				Size:     emath.Vec2{X: 4, Y: 4},
+				Color:    color.RGBA{255, 200, 50, 255},
+				Active:   true,
+				Faction:  faction,
+			},
+		}
+		g.projectiles = append(g.projectiles, projectile)
+	}
+
+	// Update resources for our player
+	for _, p := range state.Players {
+		if p.Slot == g.mpPlayerSlot {
+			g.engine.Resources.Get(resource.Metal).Current = p.Resources.Metal
+			g.engine.Resources.Get(resource.Metal).Capacity = p.Resources.MetalCap
+			g.engine.Resources.Get(resource.Energy).Current = p.Resources.Energy
+			g.engine.Resources.Get(resource.Energy).Capacity = p.Resources.EnergyCap
+			break
+		}
+	}
+}
+
+func (g *Game) getFactionFromSlot(slot int) entity.Faction {
+	if slot == g.mpPlayerSlot {
+		return entity.FactionPlayer
+	}
+	return entity.FactionEnemy
+}
+
+func (g *Game) positionCameraOnPlayerBase() {
+	// Find a player-owned building (preferably Command Nexus) to center camera on
+	for _, b := range g.buildings {
+		if b.Faction == entity.FactionPlayer {
+			g.engine.Camera.MoveTo(b.Center())
+			return
+		}
+	}
+	// Fallback to first player unit
+	for _, u := range g.units {
+		if u.Faction == entity.FactionPlayer {
+			g.engine.Camera.MoveTo(u.Center())
+			return
+		}
+	}
+}
+
+func (g *Game) initMultiplayerTerrain() {
+	// Create a fresh terrain map matching server dimensions
+	g.terrainMap = terrain.NewMap(6400, 3600)
+	g.terrainMap.GenerateGrassOnly()
+
+	// Place metal deposits matching server layout
+	centerX := float64(g.terrainMap.PixelWidth) / 2
+	centerY := float64(g.terrainMap.PixelHeight) / 2
+
+	// Center deposits (contested)
+	g.terrainMap.PlaceMetalDeposit(centerX, centerY)
+	g.terrainMap.PlaceMetalDeposit(centerX+50, centerY)
+	g.terrainMap.PlaceMetalDeposit(centerX-50, centerY)
+	g.terrainMap.PlaceMetalDeposit(centerX, centerY+50)
+	g.terrainMap.PlaceMetalDeposit(centerX, centerY-50)
+
+	// Spawn positions matching server
+	spawnPositions := []emath.Vec2{
+		{X: 400, Y: 300},
+		{X: 5800, Y: 3100},
+		{X: 5800, Y: 300},
+		{X: 400, Y: 3100},
+	}
+
+	// Place metal deposits near each spawn
+	for _, spawn := range spawnPositions {
+		metalX := spawn.X - 100
+		metalY := spawn.Y - 100
+		if metalX > 0 && metalY > 0 {
+			g.terrainMap.PlaceMetalDeposit(metalX, metalY)
+			g.terrainMap.PlaceMetalDeposit(metalX+50, metalY)
+		}
+	}
+
+	// Reset terrain cache so it gets rebuilt with new terrain
+	g.terrainCache = nil
+
+	// Reset fog of war for new terrain
+	g.fogOfWar = fog.New(g.terrainMap.PixelWidth, g.terrainMap.PixelHeight, terrain.TileSize)
+}
+
+func (g *Game) handleMultiplayerSelection(inputState input.State) {
+	if inputState.MousePos.Y < g.resourceBar.Height() {
+		return
+	}
+	cam := g.engine.Camera
+	if inputState.LeftJustReleased {
+		if g.engine.Input.State().IsDragging {
+			screenBox := g.engine.Input.GetSelectionBox()
+			worldBox := emath.Rect{
+				Pos:  cam.ScreenToWorld(screenBox.Pos),
+				Size: screenBox.Size,
+			}
+			g.selectUnitsInBox(worldBox, inputState.ShiftHeld)
+		} else {
+			worldPos := cam.ScreenToWorld(inputState.MousePos)
+			g.selectUnitAt(worldPos, inputState.ShiftHeld)
+		}
+		g.engine.Input.ResetDrag()
+	}
+}
+
+func (g *Game) handleMultiplayerCommand(worldPos emath.Vec2) {
+	// Send move command to server for selected units
+	if g.networkClient == nil || !g.networkClient.IsConnected() {
+		return
+	}
+
+	var selectedIDs []uint64
+	for _, u := range g.units {
+		if u.Selected && u.Faction == entity.FactionPlayer {
+			selectedIDs = append(selectedIDs, u.ID)
+		}
+	}
+
+	if len(selectedIDs) > 0 {
+		g.networkClient.SendMoveCommand(selectedIDs, worldPos.X, worldPos.Y)
+	}
 }
 
 func (g *Game) updatePaused(inputState input.State) error {
 	g.pauseMenu.UpdateSize(float64(g.screenWidth), float64(g.screenHeight))
-	g.saveMenu.UpdateSize(float64(g.screenWidth), float64(g.screenHeight))
-
-	if g.saveMenu.IsVisible() {
-		g.saveMenu.UpdateHover(inputState.MousePos)
-
-		if inputState.LeftJustPressed {
-			slot := g.saveMenu.HandleClick(inputState.MousePos)
-			if slot >= 0 {
-				g.handleSaveSlotSelection(slot)
-				return nil
-			}
-		}
-
-		slot, cancelled := g.saveMenu.Update(
-			inputState.MenuUp,
-			inputState.MenuDown,
-			inputState.EnterPressed,
-			inputState.EscapePressed,
-		)
-
-		if cancelled {
-			g.saveMenu.Hide()
-			return nil
-		}
-
-		if slot >= 0 {
-			g.handleSaveSlotSelection(slot)
-		}
-		return nil
-	}
-
 	g.pauseMenu.UpdateHover(inputState.MousePos)
 
 	if inputState.EscapePressed {
@@ -493,10 +1107,6 @@ func (g *Game) handlePauseMenuSelection(option ui.PauseMenuOption) error {
 	switch option {
 	case ui.PauseOptionResume:
 		g.state = StatePlaying
-	case ui.PauseOptionSave:
-		g.saveMenu.Show(ui.SaveModeSave, g.saveManager.ListSaves())
-	case ui.PauseOptionLoad:
-		g.saveMenu.Show(ui.SaveModeLoad, g.saveManager.ListSaves())
 	case ui.PauseOptionMainMenu:
 		g.state = StateMenu
 	case ui.PauseOptionQuit:
@@ -505,153 +1115,6 @@ func (g *Game) handlePauseMenuSelection(option ui.PauseMenuOption) error {
 	return nil
 }
 
-func (g *Game) handleSaveSlotSelection(slot int) {
-	mode := g.saveMenu.Mode()
-	if mode == ui.SaveModeSave {
-		missionID := ""
-		if g.currentMission != nil {
-			missionID = g.currentMission.ID
-		}
-		state := g.ToSaveState()
-		saveName := fmt.Sprintf("Save Slot %d", slot+1)
-		if err := g.saveManager.SaveGame(state, slot, saveName, missionID); err != nil {
-			log.Printf("Failed to save game: %v", err)
-		}
-		g.saveMenu.Hide()
-	} else {
-		saveFile, err := g.saveManager.LoadGame(slot)
-		if err != nil {
-			log.Printf("Failed to load game: %v", err)
-			return
-		}
-		g.LoadFromSaveState(&saveFile.GameState)
-		g.saveMenu.Hide()
-		g.state = StatePlaying
-	}
-}
-
-func (g *Game) startMission(mission *campaign.Mission) {
-	g.resetGameForMission()
-	g.loadMissionData(mission)
-}
-
-func (g *Game) resetGameForMission() {
-	g.units = nil
-	g.buildings = nil
-	g.wreckages = nil
-	g.projectiles = nil
-	g.nextUnitID = 0
-	g.nextBuildingID = 0
-	g.nextWreckageID = 0
-	g.nextProjectileID = 0
-	g.placementMode = false
-	g.placementDef = nil
-	g.terrainCache = nil
-	g.elapsedTime = 0
-
-	g.engine.Resources = resource.NewManager()
-
-	actualWorldWidth := g.terrainMap.PixelWidth
-	actualWorldHeight := g.terrainMap.PixelHeight
-	g.fogOfWar = fog.New(actualWorldWidth, actualWorldHeight, terrain.TileSize)
-}
-
-func (g *Game) loadMissionData(mission *campaign.Mission) {
-	if mission.PlayerStart != nil {
-		// Set player resources
-		if r := g.engine.Resources.Get(resource.Credits); r != nil {
-			r.Current += mission.PlayerStart.Resources.Credits
-		}
-		if r := g.engine.Resources.Get(resource.Energy); r != nil {
-			r.Current += mission.PlayerStart.Resources.Energy
-		}
-		if r := g.engine.Resources.Get(resource.Alloys); r != nil {
-			r.Current += mission.PlayerStart.Resources.Alloys
-		}
-
-		// Spawn player buildings
-		for _, bp := range mission.PlayerStart.Buildings {
-			buildingType := mission.GetBuildingType(bp.Type)
-			def := entity.BuildingDefs[buildingType]
-			if def == nil {
-				continue
-			}
-			x, y := g.findPassablePosition(bp.Position.X, bp.Position.Y)
-			building := entity.NewBuilding(g.nextBuildingID, x, y, def)
-			building.Faction = entity.FactionPlayer
-			if bp.Completed {
-				building.Completed = true
-				building.BuildProgress = 1.0
-				g.applyBuildingEffects(def)
-			}
-			g.buildings = append(g.buildings, building)
-			g.nextBuildingID++
-		}
-
-		// Spawn player units
-		for _, up := range mission.PlayerStart.Units {
-			def := up.GetUnitDef()
-			if def == nil {
-				continue
-			}
-			count := up.Count
-			if count <= 0 {
-				count = 1
-			}
-			for i := 0; i < count; i++ {
-				x, y := g.findPassablePosition(up.Position.X+float64(i)*25, up.Position.Y)
-				unit := entity.NewUnitFromDef(g.nextUnitID, x, y, def, entity.FactionPlayer)
-				g.units = append(g.units, unit)
-				g.nextUnitID++
-			}
-		}
-	}
-
-	if mission.EnemyStart != nil {
-		// Setup enemy AI at enemy start position
-		g.enemyAI = ai.NewEnemyAI(mission.EnemyStart.Position.X, mission.EnemyStart.Position.Y)
-
-		// Spawn enemy buildings
-		for _, bp := range mission.EnemyStart.Buildings {
-			buildingType := mission.GetBuildingType(bp.Type)
-			def := entity.BuildingDefs[buildingType]
-			if def == nil {
-				continue
-			}
-			x, y := g.findPassablePosition(bp.Position.X, bp.Position.Y)
-			building := entity.NewBuilding(g.nextBuildingID, x, y, def)
-			building.Faction = entity.FactionEnemy
-			building.Color = entity.GetFactionTintedColor(def.Color, entity.FactionEnemy)
-			if bp.Completed {
-				building.Completed = true
-				building.BuildProgress = 1.0
-			}
-			g.buildings = append(g.buildings, building)
-			g.nextBuildingID++
-		}
-
-		// Spawn enemy units
-		for _, up := range mission.EnemyStart.Units {
-			def := up.GetUnitDef()
-			if def == nil {
-				continue
-			}
-			count := up.Count
-			if count <= 0 {
-				count = 1
-			}
-			for i := 0; i < count; i++ {
-				x, y := g.findPassablePosition(up.Position.X+float64(i)*25, up.Position.Y)
-				unit := entity.NewUnitFromDef(g.nextUnitID, x, y, def, entity.FactionEnemy)
-				g.units = append(g.units, unit)
-				g.nextUnitID++
-			}
-		}
-	} else {
-		// No enemy in this mission, create a dummy AI
-		g.enemyAI = ai.NewEnemyAI(0, 0)
-	}
-}
 func (g *Game) updatePlaying(inputState input.State) error {
 	if inputState.EscapePressed {
 		if g.placementMode {
@@ -682,11 +1145,15 @@ func (g *Game) updatePlaying(inputState input.State) error {
 	}
 	cam.HandleEdgeScroll(inputState.MousePos.X, inputState.MousePos.Y, topOffset, leftOffset)
 	cam.HandleKeyScroll(inputState.ScrollUp, inputState.ScrollDown, inputState.ScrollLeft, inputState.ScrollRight)
-	// Handle mouse wheel zoom
-	if inputState.MouseWheelY > 0 {
-		cam.ZoomIn(inputState.MousePos)
-	} else if inputState.MouseWheelY < 0 {
-		cam.ZoomOut(inputState.MousePos)
+	// Handle mouse wheel - scroll command panel if hovering over it, otherwise zoom camera
+	if inputState.MouseWheelY != 0 {
+		if g.commandPanel.Contains(inputState.MousePos) {
+			g.commandPanel.HandleScroll(inputState.MouseWheelY)
+		} else if inputState.MouseWheelY > 0 {
+			cam.ZoomIn(inputState.MousePos)
+		} else {
+			cam.ZoomOut(inputState.MousePos)
+		}
 	}
 	if g.minimap.Contains(inputState.MousePos) {
 		if inputState.LeftJustPressed || inputState.LeftPressed {
@@ -710,11 +1177,14 @@ func (g *Game) updatePlaying(inputState input.State) error {
 		}
 	} else {
 		factory := g.getSelectedFactory()
+		buildingWithStructures := g.getSelectedBuildingWithStructures()
 		if factory != nil {
 			g.commandPanel.SetFactoryOptions(factory)
 			g.commandPanel.UpdateQueueCounts()
+		} else if buildingWithStructures != nil {
+			g.commandPanel.SetBuildingBuildOptions(buildingWithStructures)
 		} else {
-			g.commandPanel.SetBuildOptions(g.units)
+			g.commandPanel.SetVisible(false)
 		}
 		if g.commandPanel.Contains(inputState.MousePos) {
 			if inputState.LeftJustPressed {
@@ -777,29 +1247,8 @@ func (g *Game) updateInfoPanel() {
 }
 
 func (g *Game) checkVictoryConditions() {
-	// Check mission-specific victory conditions if we have a mission loaded
-	if g.currentMission != nil {
-		// Check victory conditions
-		for _, vcDef := range g.currentMission.VictoryConditions {
-			vc := campaign.CreateVictoryCondition(vcDef)
-			if vc.Check(g) {
-				g.state = StateVictory
-				return
-			}
-		}
-
-		// Check defeat conditions
-		for _, dcDef := range g.currentMission.DefeatConditions {
-			dc := campaign.CreateDefeatCondition(dcDef)
-			if dc.Check(g) {
-				g.state = StateDefeat
-				return
-			}
-		}
-		return
-	}
-
-	// Fallback for skirmish mode: destroy all enemies
+	// Victory: destroy all enemy units and buildings
+	// Defeat: lose all player units and buildings
 	enemyUnits := 0
 	enemyBuildings := 0
 	playerUnits := 0
@@ -1174,6 +1623,11 @@ func (g *Game) cleanupDeadBuildings() {
 		if b.Active {
 			aliveBuildings = append(aliveBuildings, b)
 		} else {
+			// Check if player's Command Nexus was destroyed
+			if b == g.playerNexus {
+				g.state = StateDefeat
+			}
+
 			wreckage := entity.NewWreckageFromBuilding(g.nextWreckageID, b)
 			g.wreckages = append(g.wreckages, wreckage)
 			g.nextWreckageID++
@@ -1253,7 +1707,7 @@ func (g *Game) updateRepairTask(u *entity.Unit) {
 
 	// Check if we have enough resources
 	resources := g.engine.Resources
-	metalRes := resources.Get(resource.Credits)
+	metalRes := resources.Get(resource.Metal)
 	energyRes := resources.Get(resource.Energy)
 	if metalRes.Current < metalCost || energyRes.Current < energyCost {
 		return // Not enough resources - wait
@@ -1272,37 +1726,36 @@ func (g *Game) updateRepairTask(u *entity.Unit) {
 }
 func (g *Game) applyBuildingEffects(def *entity.BuildingDef) {
 	resources := g.engine.Resources
-	if def.CreditsProduction > 0 {
-		resources.AddProduction(resource.Credits, def.CreditsProduction)
+	if def.MetalProduction > 0 {
+		resources.AddProduction(resource.Metal, def.MetalProduction)
 	}
 	if def.EnergyProduction > 0 {
 		resources.AddProduction(resource.Energy, def.EnergyProduction)
 	}
-	if def.AlloysProduction > 0 {
-		resources.AddProduction(resource.Alloys, def.AlloysProduction)
-	}
-	if def.CreditsConsumption > 0 {
-		resources.AddConsumption(resource.Credits, def.CreditsConsumption)
+	if def.MetalConsumption > 0 {
+		resources.AddConsumption(resource.Metal, def.MetalConsumption)
 	}
 	if def.EnergyConsumption > 0 {
 		resources.AddConsumption(resource.Energy, def.EnergyConsumption)
 	}
-	if def.AlloysConsumption > 0 {
-		resources.AddConsumption(resource.Alloys, def.AlloysConsumption)
-	}
-	if def.CreditsStorage > 0 {
-		resources.AddCapacity(resource.Credits, def.CreditsStorage)
+	if def.MetalStorage > 0 {
+		resources.AddCapacity(resource.Metal, def.MetalStorage)
 	}
 	if def.EnergyStorage > 0 {
 		resources.AddCapacity(resource.Energy, def.EnergyStorage)
-	}
-	if def.AlloysStorage > 0 {
-		resources.AddCapacity(resource.Alloys, def.AlloysStorage)
 	}
 }
 func (g *Game) updateBuildings() {
 	for _, b := range g.buildings {
 		b.UpdateAnimation(tickRate)
+
+		// Auto-construction for buildings under construction
+		if !b.Completed {
+			if b.UpdateConstruction(tickRate, g.engine.Resources) {
+				g.applyBuildingEffects(b.Def)
+			}
+		}
+
 		if completedUnit := b.UpdateProduction(tickRate, g.engine.Resources); completedUnit != nil {
 			spawnPos := b.GetSpawnPoint()
 			unit := entity.NewUnitFromDef(g.nextUnitID, spawnPos.X, spawnPos.Y, completedUnit, b.Faction)
@@ -1352,6 +1805,15 @@ func (g *Game) getSelectedBuilding() *entity.Building {
 	}
 	return nil
 }
+
+func (g *Game) getSelectedBuildingWithStructures() *entity.Building {
+	for _, b := range g.buildings {
+		if b.Selected && b.Faction == entity.FactionPlayer && b.Def != nil && len(b.Def.BuildableStructures) > 0 {
+			return b
+		}
+	}
+	return nil
+}
 func snapToGrid(pos emath.Vec2) emath.Vec2 {
 	return emath.Vec2{
 		X: math.Floor(pos.X/buildingGridSize) * buildingGridSize,
@@ -1396,48 +1858,34 @@ func (g *Game) hasMetal(bounds emath.Rect) bool {
 	return false
 }
 func (g *Game) placeBuilding(worldPos emath.Vec2, def *entity.BuildingDef, queue bool) {
-	var constructor *entity.Unit
-	for _, u := range g.units {
-		if u.Selected && u.CanBuild() {
-			constructor = u
-			break
-		}
-	}
-	if constructor == nil {
-		return
-	}
 	buildingPos := snapToGrid(worldPos)
-	if queue {
-		constructor.QueueBuildTask(def, buildingPos)
-	} else {
-		constructor.SetBuildTask(def, buildingPos)
-	}
+	building := entity.NewBuildingUnderConstruction(g.nextBuildingID, buildingPos.X, buildingPos.Y, def)
+	building.Faction = entity.FactionPlayer
+	g.buildings = append(g.buildings, building)
+	g.nextBuildingID++
 }
 func (g *Game) Draw(screen *ebiten.Image) {
 	switch g.state {
 	case StateMenu:
 		g.mainMenu.Draw(screen)
 		return
-	case StateCampaignMenu:
-		g.mainMenu.Draw(screen)
-		g.campaignMenu.Draw(screen)
-		return
-	case StateMissionBriefing:
-		g.mainMenu.Draw(screen)
-		g.missionBriefing.Draw(screen)
-		return
 	case StatePlaying:
 		g.drawPlaying(screen)
 	case StatePaused:
 		g.drawPlaying(screen)
 		g.pauseMenu.Draw(screen)
-		g.saveMenu.Draw(screen)
 	case StateVictory:
 		g.drawPlaying(screen)
 		g.drawEndScreen(screen, "VICTORY!", color.RGBA{0, 200, 0, 255})
 	case StateDefeat:
 		g.drawPlaying(screen)
 		g.drawEndScreen(screen, "DEFEAT", color.RGBA{200, 0, 0, 255})
+	case StateMultiplayerLobby:
+		g.lobbyBrowser.Draw(screen)
+	case StateMultiplayerRoom:
+		g.lobbyRoom.Draw(screen)
+	case StateMultiplayerPlaying:
+		g.drawMultiplayerPlaying(screen)
 	}
 }
 
@@ -1499,8 +1947,10 @@ func (g *Game) drawPlaying(screen *ebiten.Image) {
 		}
 	}
 	for _, p := range g.projectiles {
-		if cam.IsVisible(p.Bounds()) && g.fogOfWar.IsVisible(p.Bounds()) {
-			g.drawProjectile(screen, p)
+		if cam.IsVisible(p.Bounds()) {
+			if p.Faction == entity.FactionPlayer || g.fogOfWar.IsVisible(p.Bounds()) {
+				g.drawProjectile(screen, p)
+			}
 		}
 	}
 	if g.placementMode && g.placementDef != nil {
@@ -1550,9 +2000,111 @@ func (g *Game) drawPlaying(screen *ebiten.Image) {
 	fpsText := fmt.Sprintf("FPS: %.1f  TPS: %.1f  Units: %d  Buildings: %d  Projectiles: %d",
 		ebiten.ActualFPS(), ebiten.ActualTPS(), len(g.units), len(g.buildings), len(g.projectiles))
 	ebitenutil.DebugPrintAt(screen, fpsText, 10, int(baseHeight)-20)
+	viewportBounds := cam.GetViewportBounds()
+	debugText := fmt.Sprintf("Cam: pos=(%.0f,%.0f) viewport=(%.0f,%.0f) zoom=%.2f visible=(%.0f,%.0f)",
+		cam.Position.X, cam.Position.Y, cam.ViewportSize.X, cam.ViewportSize.Y, cam.Zoom,
+		viewportBounds.Size.X, viewportBounds.Size.Y)
+	ebitenutil.DebugPrintAt(screen, debugText, 10, int(baseHeight)-40)
+	mmBounds := g.minimap.Bounds()
+	mmWorld := g.minimap.WorldSize()
+	// Calculate expected minimap viewport size
+	scaleX := mmBounds.Size.X / mmWorld.X
+	scaleY := mmBounds.Size.Y / mmWorld.Y
+	expectedVpW := viewportBounds.Size.X * scaleX
+	expectedVpH := viewportBounds.Size.Y * scaleY
+	debugText2 := fmt.Sprintf("Minimap: bounds=(%.0f,%.0f) worldSize=(%.0f,%.0f) vpRect=(%.1f,%.1f)",
+		mmBounds.Size.X, mmBounds.Size.Y, mmWorld.X, mmWorld.Y, expectedVpW, expectedVpH)
+	ebitenutil.DebugPrintAt(screen, debugText2, 10, int(baseHeight)-60)
+	if g.terrainCache != nil {
+		tcBounds := g.terrainCache.Bounds()
+		debugText3 := fmt.Sprintf("TerrainCache: size=(%d,%d) terrain=(%d,%d tiles)",
+			tcBounds.Dx(), tcBounds.Dy(), g.terrainMap.Width, g.terrainMap.Height)
+		ebitenutil.DebugPrintAt(screen, debugText3, 10, int(baseHeight)-80)
+	}
+	// Debug minimap viewport position
+	debugText4 := fmt.Sprintf("MM pos=(%.0f,%.0f) camWorldPos=(%.0f,%.0f)",
+		mmBounds.Pos.X, mmBounds.Pos.Y, cam.Position.X, cam.Position.Y)
+	ebitenutil.DebugPrintAt(screen, debugText4, 10, int(baseHeight)-100)
 	g.infoPanel.Draw(screen)
 	g.tooltip.Draw(screen)
 }
+
+func (g *Game) drawMultiplayerPlaying(screen *ebiten.Image) {
+	r := g.engine.Renderer
+	cam := g.engine.Camera
+	r.Clear(screen)
+
+	g.drawTerrain(screen)
+
+	for _, b := range g.buildings {
+		if cam.IsVisible(b.Bounds()) {
+			if b.Faction == entity.FactionPlayer || g.fogOfWar.IsVisible(b.Bounds()) {
+				g.drawBuilding(screen, b)
+			}
+		}
+	}
+	for _, u := range g.units {
+		if cam.IsVisible(u.Bounds()) {
+			if u.Faction == entity.FactionPlayer || g.fogOfWar.IsVisible(u.Bounds()) {
+				g.drawUnit(screen, u)
+			}
+		}
+	}
+	for _, p := range g.projectiles {
+		if cam.IsVisible(p.Bounds()) && g.fogOfWar.IsVisible(p.Bounds()) {
+			g.drawProjectile(screen, p)
+		}
+	}
+
+	// Draw building placement preview
+	if g.placementMode && g.placementDef != nil {
+		g.drawPlacementPreview(screen)
+	}
+
+	if g.engine.Input.State().IsDragging {
+		box := g.engine.Input.GetSelectionBox()
+		r.DrawRectOutline(screen, box, 1, color.RGBA{0, 255, 0, 255})
+	}
+
+	g.resourceBar.Draw(screen, g.engine.Resources)
+	g.commandPanel.Draw(screen, g.engine.Resources)
+
+	minimapEntities := make([]ui.MinimapEntity, 0, len(g.units)+len(g.buildings))
+	for _, u := range g.units {
+		if u.Faction == entity.FactionPlayer || g.fogOfWar.IsVisible(u.Bounds()) {
+			minimapEntities = append(minimapEntities, ui.MinimapEntity{
+				Position: u.Position,
+				Size:     u.Size,
+				Color:    u.Color,
+			})
+		}
+	}
+	for _, b := range g.buildings {
+		if b.Faction == entity.FactionPlayer || g.fogOfWar.IsVisible(b.Bounds()) {
+			minimapEntities = append(minimapEntities, ui.MinimapEntity{
+				Position: b.Position,
+				Size:     b.Size,
+				Color:    b.Color,
+			})
+		}
+	}
+	g.minimap.Draw(screen, cam, g.terrainMap, g.fogOfWar, minimapEntities)
+
+	instructionX := int(g.commandPanel.Width()) + 10
+	if !g.commandPanel.IsVisible() {
+		instructionX = 10
+	}
+	instructions := "MULTIPLAYER | WASD/Arrows: Scroll | Left Click: Select | Right Click: Move | ESC: Leave"
+	r.DrawTextAt(screen, instructions, instructionX, int(g.resourceBar.Height())+5)
+
+	fpsText := fmt.Sprintf("FPS: %.1f  Units: %d  Buildings: %d  Slot: %d",
+		ebiten.ActualFPS(), len(g.units), len(g.buildings), g.mpPlayerSlot)
+	ebitenutil.DebugPrintAt(screen, fpsText, 10, int(baseHeight)-20)
+
+	g.infoPanel.Draw(screen)
+	g.tooltip.Draw(screen)
+}
+
 func (g *Game) getTileImage(c color.RGBA) *ebiten.Image {
 	if g.tileImages == nil {
 		g.tileImages = make(map[color.RGBA]*ebiten.Image)
@@ -1567,6 +2119,18 @@ func (g *Game) getTileImage(c color.RGBA) *ebiten.Image {
 }
 
 func (g *Game) drawTerrain(screen *ebiten.Image) {
+	// Cache scaled grass tile if not done yet
+	if g.grassTileScaled == nil && terrain.SpritesLoaded() {
+		grassTile := terrain.GetGrassTile()
+		if grassTile != nil {
+			scale := float64(terrain.TileSize) / float64(terrain.TilesetTileSize)
+			g.grassTileScaled = ebiten.NewImage(terrain.TileSize, terrain.TileSize)
+			op := &ebiten.DrawImageOptions{}
+			op.GeoM.Scale(scale, scale)
+			g.grassTileScaled.DrawImage(grassTile, op)
+		}
+	}
+
 	// Cache base terrain (without fog) - only build once
 	if g.terrainCache == nil {
 		worldW := g.terrainMap.Width * terrain.TileSize
@@ -1579,11 +2143,17 @@ func (g *Game) drawTerrain(screen *ebiten.Image) {
 				screenX := float64(x) * terrain.TileSize
 				screenY := float64(y) * terrain.TileSize
 
-				tileColor := terrain.TileColorVariation(tile.Type, x, y).(color.RGBA)
-				tileImg := g.getTileImage(tileColor)
 				op := &ebiten.DrawImageOptions{}
 				op.GeoM.Translate(screenX, screenY)
-				g.terrainCache.DrawImage(tileImg, op)
+
+				// Use grass sprite for grass tiles, fallback to color for others
+				if tile.Type == terrain.TileGrass && g.grassTileScaled != nil {
+					g.terrainCache.DrawImage(g.grassTileScaled, op)
+				} else {
+					tileColor := terrain.TileColorVariation(tile.Type, x, y).(color.RGBA)
+					tileImg := g.getTileImage(tileColor)
+					g.terrainCache.DrawImage(tileImg, op)
+				}
 
 				// Draw metal deposits on base terrain
 				if tile.HasMetal {

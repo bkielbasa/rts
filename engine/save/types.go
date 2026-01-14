@@ -1,9 +1,10 @@
 package save
 
 import (
+	"time"
+
 	"github.com/bklimczak/tanks/engine/entity"
 	"github.com/bklimczak/tanks/engine/resource"
-	"time"
 )
 
 const SaveVersion = 1
@@ -40,9 +41,8 @@ type GameState struct {
 }
 
 type ResourcesState struct {
-	Credits ResourceState `yaml:"credits"`
-	Energy  ResourceState `yaml:"energy"`
-	Alloys  ResourceState `yaml:"alloys"`
+	Metal  ResourceState `yaml:"metal"`
+	Energy ResourceState `yaml:"energy"`
 }
 
 type ResourceState struct {
@@ -128,10 +128,10 @@ type WreckageState struct {
 }
 
 type FogState struct {
-	Width    int       `yaml:"width"`
-	Height   int       `yaml:"height"`
-	TileSize float64   `yaml:"tile_size"`
-	Tiles    [][]int8  `yaml:"tiles"`
+	Width    int      `yaml:"width"`
+	Height   int      `yaml:"height"`
+	TileSize float64  `yaml:"tile_size"`
+	Tiles    [][]int8 `yaml:"tiles"`
 }
 
 type AIState struct {
@@ -156,11 +156,11 @@ type MissionState struct {
 
 func NewResourcesStateFromManager(m *resource.Manager) ResourcesState {
 	return ResourcesState{
-		Credits: ResourceState{
-			Current:     m.Get(resource.Credits).Current,
-			Capacity:    m.Get(resource.Credits).Capacity,
-			Production:  m.Get(resource.Credits).Production,
-			Consumption: m.Get(resource.Credits).Consumption,
+		Metal: ResourceState{
+			Current:     m.Get(resource.Metal).Current,
+			Capacity:    m.Get(resource.Metal).Capacity,
+			Production:  m.Get(resource.Metal).Production,
+			Consumption: m.Get(resource.Metal).Consumption,
 		},
 		Energy: ResourceState{
 			Current:     m.Get(resource.Energy).Current,
@@ -168,31 +168,19 @@ func NewResourcesStateFromManager(m *resource.Manager) ResourcesState {
 			Production:  m.Get(resource.Energy).Production,
 			Consumption: m.Get(resource.Energy).Consumption,
 		},
-		Alloys: ResourceState{
-			Current:     m.Get(resource.Alloys).Current,
-			Capacity:    m.Get(resource.Alloys).Capacity,
-			Production:  m.Get(resource.Alloys).Production,
-			Consumption: m.Get(resource.Alloys).Consumption,
-		},
 	}
 }
 
 func (rs *ResourcesState) ApplyToManager(m *resource.Manager) {
-	credits := m.Get(resource.Credits)
-	credits.Current = rs.Credits.Current
-	credits.Capacity = rs.Credits.Capacity
-	credits.Production = rs.Credits.Production
-	credits.Consumption = rs.Credits.Consumption
+	metal := m.Get(resource.Metal)
+	metal.Current = rs.Metal.Current
+	metal.Capacity = rs.Metal.Capacity
+	metal.Production = rs.Metal.Production
+	metal.Consumption = rs.Metal.Consumption
 
 	energy := m.Get(resource.Energy)
 	energy.Current = rs.Energy.Current
 	energy.Capacity = rs.Energy.Capacity
 	energy.Production = rs.Energy.Production
 	energy.Consumption = rs.Energy.Consumption
-
-	alloys := m.Get(resource.Alloys)
-	alloys.Current = rs.Alloys.Current
-	alloys.Capacity = rs.Alloys.Capacity
-	alloys.Production = rs.Alloys.Production
-	alloys.Consumption = rs.Alloys.Consumption
 }

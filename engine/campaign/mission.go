@@ -27,9 +27,9 @@ type Mission struct {
 }
 
 type FactionStart struct {
-	Position  Position        `yaml:"position"`
-	Resources ResourcesConfig `yaml:"resources"`
-	Units     []UnitPlacement `yaml:"units,omitempty"`
+	Position  Position            `yaml:"position"`
+	Resources ResourcesConfig     `yaml:"resources"`
+	Units     []UnitPlacement     `yaml:"units,omitempty"`
 	Buildings []BuildingPlacement `yaml:"buildings,omitempty"`
 }
 
@@ -43,9 +43,8 @@ func (p Position) ToVec2() emath.Vec2 {
 }
 
 type ResourcesConfig struct {
-	Credits float64 `yaml:"credits"`
-	Energy  float64 `yaml:"energy"`
-	Alloys  float64 `yaml:"alloys"`
+	Metal  float64 `yaml:"metal"`
+	Energy float64 `yaml:"energy"`
 }
 
 type UnitPlacement struct {
@@ -89,9 +88,9 @@ func (z *Zone) ToRect() emath.Rect {
 }
 
 type MissionRestrictions struct {
-	CanBuild       bool     `yaml:"can_build"`
-	CanProduce     bool     `yaml:"can_produce"`
-	AllowedUnits   []string `yaml:"allowed_units,omitempty"`
+	CanBuild         bool     `yaml:"can_build"`
+	CanProduce       bool     `yaml:"can_produce"`
+	AllowedUnits     []string `yaml:"allowed_units,omitempty"`
 	AllowedBuildings []string `yaml:"allowed_buildings,omitempty"`
 }
 
@@ -168,8 +167,8 @@ func (m *Mission) GetBuildingType(typeName string) entity.BuildingType {
 		return entity.BuildingOreExtractor
 	case "AlloyFoundry":
 		return entity.BuildingAlloyFoundry
-	case "VehicleFactory", "Barracks":
-		return entity.BuildingVehicleFactory
+	case "VehicleFactory", "Barracks", "TanksFactory":
+		return entity.BuildingTanksFactory
 	case "HoverBay":
 		return entity.BuildingHoverBay
 	case "DataUplink":

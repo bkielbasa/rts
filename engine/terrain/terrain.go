@@ -1,9 +1,10 @@
 package terrain
 
 import (
-	emath "github.com/bklimczak/tanks/engine/math"
 	"image/color"
 	"math/rand"
+
+	emath "github.com/bklimczak/tanks/engine/math"
 )
 
 type TileType int
@@ -89,6 +90,20 @@ func (m *Map) Generate(seed int64) {
 	rng := rand.New(rand.NewSource(seed))
 	m.generateWater(rng)
 	m.generateMetal(rng)
+}
+
+// GenerateGrassOnly fills the map with grass tiles only (no water or metal)
+func (m *Map) GenerateGrassOnly() {
+	for y := 0; y < m.Height; y++ {
+		for x := 0; x < m.Width; x++ {
+			m.Tiles[y][x] = Tile{
+				Type:      TileGrass,
+				Passable:  true,
+				Buildable: true,
+				HasMetal:  false,
+			}
+		}
+	}
 }
 func (m *Map) generateWater(rng *rand.Rand) {
 	numLakes := 5 + rng.Intn(5)

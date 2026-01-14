@@ -1,11 +1,12 @@
 package ai
 
 import (
+	"math"
+	"math/rand"
+
 	"github.com/bklimczak/tanks/engine/entity"
 	emath "github.com/bklimczak/tanks/engine/math"
 	"github.com/bklimczak/tanks/engine/resource"
-	"math"
-	"math/rand"
 )
 
 type AIState int
@@ -36,11 +37,11 @@ type EnemyAI struct {
 
 func NewEnemyAI(baseX, baseY float64) *EnemyAI {
 	resources := resource.NewManager()
-	resources.Get(resource.Credits).Add(500)
+	resources.Get(resource.Metal).Add(500)
 	resources.Get(resource.Energy).Add(500)
-	resources.AddCapacity(resource.Credits, 1000)
+	resources.AddCapacity(resource.Metal, 1000)
 	resources.AddCapacity(resource.Energy, 2000)
-	resources.AddProduction(resource.Credits, 5)
+	resources.AddProduction(resource.Metal, 5)
 	resources.AddProduction(resource.Energy, 15)
 
 	return &EnemyAI{

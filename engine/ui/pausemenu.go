@@ -1,19 +1,18 @@
 package ui
 
 import (
+	"image/color"
+
 	emath "github.com/bklimczak/tanks/engine/math"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
-	"image/color"
 )
 
 type PauseMenuOption int
 
 const (
 	PauseOptionResume PauseMenuOption = iota
-	PauseOptionSave
-	PauseOptionLoad
 	PauseOptionMainMenu
 	PauseOptionQuit
 	pauseOptionCount
@@ -32,8 +31,6 @@ func NewPauseMenu() *PauseMenu {
 		selectedOption: PauseOptionResume,
 		options: []string{
 			"Resume Game",
-			"Save Game",
-			"Load Game",
 			"Main Menu",
 			"Quit",
 		},

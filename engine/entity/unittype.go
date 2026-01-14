@@ -14,6 +14,12 @@ const (
 	UnitTypeConstructor
 	UnitTypeTank
 	UnitTypeScout
+	UnitTypeLightTank
+	UnitTypeHeavyTank
+	UnitTypeArtillery
+	UnitTypeRocketTank
+	UnitTypeFlameTank
+	UnitTypeAAVehicle
 )
 
 func (t UnitType) String() string {
@@ -24,6 +30,18 @@ func (t UnitType) String() string {
 		return "Scout"
 	case UnitTypeTank:
 		return "Tank"
+	case UnitTypeLightTank:
+		return "Light Tank"
+	case UnitTypeHeavyTank:
+		return "Heavy Tank"
+	case UnitTypeArtillery:
+		return "Artillery"
+	case UnitTypeRocketTank:
+		return "Rocket Tank"
+	case UnitTypeFlameTank:
+		return "Flame Tank"
+	case UnitTypeAAVehicle:
+		return "AA Vehicle"
 	default:
 		return "Unit"
 	}
@@ -183,7 +201,7 @@ const (
 	BuildingFusionReactor
 	BuildingOreExtractor
 	BuildingAlloyFoundry
-	BuildingVehicleFactory
+	BuildingTanksFactory
 	BuildingHoverBay
 	BuildingDataUplink
 	BuildingWall
@@ -214,8 +232,8 @@ func (t BuildingType) String() string {
 		return "Ore Extractor"
 	case BuildingAlloyFoundry:
 		return "Alloy Foundry"
-	case BuildingVehicleFactory:
-		return "Vehicle Factory"
+	case BuildingTanksFactory:
+		return "Tanks Factory"
 	case BuildingHoverBay:
 		return "Hover Bay"
 	case BuildingDataUplink:
@@ -231,13 +249,13 @@ func (t BuildingType) String() string {
 	case BuildingSolarPanel:
 		return "Solar Panel"
 	case BuildingMetalExtractor:
-		return "Credit Extractor"
+		return "Metal Extractor"
 	case BuildingMetalStorage:
-		return "Credit Storage"
+		return "Metal Storage"
 	case BuildingEnergyStorage:
 		return "Energy Storage"
 	case BuildingMetalStorageLarge:
-		return "Large Credit Storage"
+		return "Large Metal Storage"
 	case BuildingEnergyStorageLarge:
 		return "Large Energy Storage"
 	case BuildingMechFactory:
@@ -258,22 +276,20 @@ type BuildingDef struct {
 	Height            float64 // Explicit height (takes precedence over Size)
 	Color             color.Color
 	Cost              map[resource.Type]float64
-	CreditsProduction float64
+	MetalProduction   float64
 	EnergyProduction  float64
-	AlloysProduction  float64
-	CreditsConsumption float64
+	MetalConsumption  float64
 	EnergyConsumption float64
-	AlloysConsumption float64
-	CreditsStorage    float64
+	MetalStorage      float64
 	EnergyStorage     float64
-	AlloysStorage     float64
 	BuildTime         float64
 	VisionRange       float64
 	Health            float64
 
-	IsFactory       bool
-	ProducesUnits   []UnitType
-	RequiresDeposit bool
+	IsFactory           bool
+	ProducesUnits       []UnitType
+	BuildableStructures []BuildingType
+	RequiresDeposit     bool
 
 	CanAttack     bool
 	Damage        float64
@@ -312,7 +328,7 @@ var AllBuildableTypes = []BuildingType{
 	BuildingFusionReactor,
 	BuildingOreExtractor,
 	BuildingAlloyFoundry,
-	BuildingVehicleFactory,
+	BuildingTanksFactory,
 	BuildingHoverBay,
 	BuildingDataUplink,
 	BuildingWall,
@@ -330,8 +346,8 @@ var UnitDefs = map[UnitType]*UnitDef{
 		Speed:       2.5,
 		Color:       color.RGBA{80, 120, 80, 255},
 		Cost: map[resource.Type]float64{
-			resource.Credits: 100,
-			resource.Energy:  50,
+			resource.Metal:  100,
+			resource.Energy: 50,
 		},
 		BuildTime:     5.0,
 		Health:        100,
@@ -357,8 +373,8 @@ var UnitDefs = map[UnitType]*UnitDef{
 		Speed:       5.0,
 		Color:       color.RGBA{180, 180, 100, 255},
 		Cost: map[resource.Type]float64{
-			resource.Credits: 30,
-			resource.Energy:  20,
+			resource.Metal:  30,
+			resource.Energy: 20,
 		},
 		BuildTime:     2.0,
 		Health:        40,
@@ -379,8 +395,8 @@ var UnitDefs = map[UnitType]*UnitDef{
 		Speed:       1.5,
 		Color:       color.RGBA{200, 180, 50, 255},
 		Cost: map[resource.Type]float64{
-			resource.Credits: 150,
-			resource.Energy:  75,
+			resource.Metal:  150,
+			resource.Energy: 75,
 		},
 		BuildTime:     8.0,
 		Health:        60,
@@ -390,23 +406,191 @@ var UnitDefs = map[UnitType]*UnitDef{
 			BuildableTypes: AllBuildableTypes,
 		},
 	},
+	UnitTypeLightTank: {
+		Type:        UnitTypeLightTank,
+		Name:        "Light Tank",
+		Description: "Fast scout tank with light armor",
+		Width:       50,
+		Height:      35,
+		Speed:       4.0,
+		Color:       color.RGBA{100, 140, 100, 255},
+		Cost: map[resource.Type]float64{
+			resource.Metal:  60,
+			resource.Energy: 30,
+		},
+		BuildTime:     3.0,
+		Health:        60,
+		VisionRange:   300,
+		RotationSpeed: 0.05,
+		SpriteScale:   0.22,
+		Combat: &CombatDef{
+			Damage:   10,
+			Range:    120,
+			FireRate: 1.5,
+		},
+		TankRender: &TankRenderDef{
+			HullSpritePath:      "units/color_a/Hull_02.png",
+			GunSpritePath:       "units/color_a/Gun_02.png",
+			TurretRotationSpeed: 0.10,
+		},
+	},
+	UnitTypeHeavyTank: {
+		Type:        UnitTypeHeavyTank,
+		Name:        "Heavy Tank",
+		Description: "Slow but heavily armored",
+		Width:       60,
+		Height:      45,
+		Speed:       1.5,
+		Color:       color.RGBA{60, 100, 60, 255},
+		Cost: map[resource.Type]float64{
+			resource.Metal:  200,
+			resource.Energy: 100,
+		},
+		BuildTime:     8.0,
+		Health:        200,
+		VisionRange:   200,
+		RotationSpeed: 0.02,
+		SpriteScale:   0.28,
+		Combat: &CombatDef{
+			Damage:   25,
+			Range:    180,
+			FireRate: 0.6,
+		},
+		TankRender: &TankRenderDef{
+			HullSpritePath:      "units/color_a/Hull_05.png",
+			GunSpritePath:       "units/color_a/Gun_05.png",
+			TurretRotationSpeed: 0.05,
+		},
+	},
+	UnitTypeArtillery: {
+		Type:        UnitTypeArtillery,
+		Name:        "Artillery",
+		Description: "Long range, high damage, fragile",
+		Width:       55,
+		Height:      40,
+		Speed:       1.2,
+		Color:       color.RGBA{120, 100, 80, 255},
+		Cost: map[resource.Type]float64{
+			resource.Metal:  250,
+			resource.Energy: 125,
+		},
+		BuildTime:     10.0,
+		Health:        50,
+		VisionRange:   400,
+		RotationSpeed: 0.02,
+		SpriteScale:   0.25,
+		Combat: &CombatDef{
+			Damage:   40,
+			Range:    350,
+			FireRate: 0.3,
+		},
+		TankRender: &TankRenderDef{
+			HullSpritePath:      "units/color_a/Hull_03.png",
+			GunSpritePath:       "units/color_a/Gun_07.png",
+			TurretRotationSpeed: 0.04,
+		},
+	},
+	UnitTypeRocketTank: {
+		Type:        UnitTypeRocketTank,
+		Name:        "Rocket Tank",
+		Description: "Medium range burst damage",
+		Width:       55,
+		Height:      40,
+		Speed:       2.0,
+		Color:       color.RGBA{140, 80, 80, 255},
+		Cost: map[resource.Type]float64{
+			resource.Metal:  180,
+			resource.Energy: 90,
+		},
+		BuildTime:     7.0,
+		Health:        80,
+		VisionRange:   250,
+		RotationSpeed: 0.03,
+		SpriteScale:   0.25,
+		Combat: &CombatDef{
+			Damage:   30,
+			Range:    200,
+			FireRate: 0.5,
+		},
+		TankRender: &TankRenderDef{
+			HullSpritePath:      "units/color_a/Hull_04.png",
+			GunSpritePath:       "units/color_a/Gun_06.png",
+			TurretRotationSpeed: 0.06,
+		},
+	},
+	UnitTypeFlameTank: {
+		Type:        UnitTypeFlameTank,
+		Name:        "Flame Tank",
+		Description: "Short range, rapid fire",
+		Width:       55,
+		Height:      40,
+		Speed:       2.2,
+		Color:       color.RGBA{180, 100, 50, 255},
+		Cost: map[resource.Type]float64{
+			resource.Metal:  120,
+			resource.Energy: 60,
+		},
+		BuildTime:     6.0,
+		Health:        90,
+		VisionRange:   200,
+		RotationSpeed: 0.04,
+		SpriteScale:   0.25,
+		Combat: &CombatDef{
+			Damage:   8,
+			Range:    80,
+			FireRate: 4.0,
+		},
+		TankRender: &TankRenderDef{
+			HullSpritePath:      "units/color_a/Hull_06.png",
+			GunSpritePath:       "units/color_a/Gun_03.png",
+			TurretRotationSpeed: 0.10,
+		},
+	},
+	UnitTypeAAVehicle: {
+		Type:        UnitTypeAAVehicle,
+		Name:        "AA Vehicle",
+		Description: "Fast anti-air specialist",
+		Width:       50,
+		Height:      35,
+		Speed:       3.5,
+		Color:       color.RGBA{100, 120, 150, 255},
+		Cost: map[resource.Type]float64{
+			resource.Metal:  140,
+			resource.Energy: 70,
+		},
+		BuildTime:     5.0,
+		Health:        50,
+		VisionRange:   350,
+		RotationSpeed: 0.05,
+		SpriteScale:   0.22,
+		Combat: &CombatDef{
+			Damage:   12,
+			Range:    250,
+			FireRate: 2.0,
+		},
+		TankRender: &TankRenderDef{
+			HullSpritePath:      "units/color_a/Hull_07.png",
+			GunSpritePath:       "units/color_a/Gun_08.png",
+			TurretRotationSpeed: 0.12,
+		},
+	},
 }
 
 // CreateTankDef creates a custom tank definition with specified hull, gun, and color
 func CreateTankDef(colorName string, hull, gun int) *UnitDef {
 	baseDef := UnitDefs[UnitTypeTank]
 	return &UnitDef{
-		Type:        UnitTypeTank,
-		Name:        baseDef.Name,
-		Description: baseDef.Description,
-		Width:       baseDef.Width,
-		Height:      baseDef.Height,
-		Speed:       baseDef.Speed,
-		Color:       baseDef.Color,
-		Cost:        baseDef.Cost,
-		BuildTime:   baseDef.BuildTime,
-		Health:      baseDef.Health,
-		VisionRange: baseDef.VisionRange,
+		Type:          UnitTypeTank,
+		Name:          baseDef.Name,
+		Description:   baseDef.Description,
+		Width:         baseDef.Width,
+		Height:        baseDef.Height,
+		Speed:         baseDef.Speed,
+		Color:         baseDef.Color,
+		Cost:          baseDef.Cost,
+		BuildTime:     baseDef.BuildTime,
+		Health:        baseDef.Health,
+		VisionRange:   baseDef.VisionRange,
 		RotationSpeed: baseDef.RotationSpeed,
 		SpriteScale:   baseDef.SpriteScale,
 		Combat:        baseDef.Combat,
@@ -421,29 +605,34 @@ func CreateTankDef(colorName string, hull, gun int) *UnitDef {
 var BuildingDefs = map[BuildingType]*BuildingDef{
 	// === TIER 1 - FOUNDATION ===
 	BuildingCommandNexus: {
-		Type:           BuildingCommandNexus,
-		Name:           "Command Nexus",
-		Description:    "Central command, builds constructors, provides radar",
-		Size:           70,
-		Color:          color.RGBA{60, 80, 120, 255},
-		Cost:           map[resource.Type]float64{},
+		Type:              BuildingCommandNexus,
+		Name:              "Command Nexus",
+		Description:       "Central command, build structures from here",
+		Size:              70,
+		Color:             color.RGBA{60, 80, 120, 255},
+		Cost:              map[resource.Type]float64{},
 		EnergyConsumption: 20,
-		BuildTime:      0,
-		VisionRange:    350,
-		Health:         1000,
-		IsFactory:      true,
-		ProducesUnits:  []UnitType{UnitTypeConstructor},
-		CreditsStorage: 500,
-		EnergyStorage:  100,
+		BuildTime:         0,
+		VisionRange:       350,
+		Health:            1000,
+		IsFactory:         false,
+		ProducesUnits:     []UnitType{},
+		BuildableStructures: []BuildingType{
+			BuildingTanksFactory,
+			BuildingMetalExtractor,
+			BuildingSolarPanel,
+		},
+		MetalStorage:  500,
+		EnergyStorage: 100,
 	},
 	BuildingSolarArray: {
-		Type:             BuildingSolarArray,
-		Name:             "Solar Array",
-		Description:      "Basic power generation",
-		Size:             128,
-		Color:            color.RGBA{50, 120, 200, 255},
+		Type:        BuildingSolarArray,
+		Name:        "Solar Array",
+		Description: "Basic power generation",
+		Size:        128,
+		Color:       color.RGBA{50, 120, 200, 255},
 		Cost: map[resource.Type]float64{
-			resource.Credits: 400,
+			resource.Metal: 400,
 		},
 		EnergyProduction: 40,
 		BuildTime:        8,
@@ -452,13 +641,13 @@ var BuildingDefs = map[BuildingType]*BuildingDef{
 		SpritePath:       "buildings/solar_array.png",
 	},
 	BuildingFusionReactor: {
-		Type:             BuildingFusionReactor,
-		Name:             "Fusion Reactor",
-		Description:      "Reliable high-output power",
-		Size:             45,
-		Color:            color.RGBA{100, 180, 255, 255},
+		Type:        BuildingFusionReactor,
+		Name:        "Fusion Reactor",
+		Description: "Reliable high-output power",
+		Size:        45,
+		Color:       color.RGBA{100, 180, 255, 255},
 		Cost: map[resource.Type]float64{
-			resource.Credits: 800,
+			resource.Metal: 800,
 		},
 		EnergyProduction: 80,
 		BuildTime:        15,
@@ -472,9 +661,9 @@ var BuildingDefs = map[BuildingType]*BuildingDef{
 		Size:        40,
 		Color:       color.RGBA{180, 150, 100, 255},
 		Cost: map[resource.Type]float64{
-			resource.Credits: 600,
+			resource.Metal: 600,
 		},
-		CreditsProduction: 15,
+		MetalProduction:   15,
 		EnergyConsumption: 5,
 		BuildTime:         12,
 		VisionRange:       100,
@@ -483,41 +672,49 @@ var BuildingDefs = map[BuildingType]*BuildingDef{
 	},
 	BuildingAlloyFoundry: {
 		Type:        BuildingAlloyFoundry,
-		Name:        "Alloy Foundry",
-		Description: "Processes ore into alloys",
+		Name:        "Metal Refinery",
+		Description: "Refines and stores metal",
 		Size:        50,
 		Color:       color.RGBA{140, 100, 160, 255},
 		Cost: map[resource.Type]float64{
-			resource.Credits: 700,
+			resource.Metal: 700,
 		},
-		AlloysProduction:   5,
-		CreditsConsumption: 3,
-		EnergyConsumption:  15,
-		BuildTime:          18,
-		VisionRange:        100,
-		Health:             400,
-		AlloysStorage:      200,
+		MetalProduction:   3,
+		EnergyConsumption: 15,
+		BuildTime:         18,
+		VisionRange:       100,
+		Health:            400,
+		MetalStorage:      500,
 	},
-	BuildingVehicleFactory: {
-		Type:        BuildingVehicleFactory,
-		Name:        "Vehicle Factory",
+	BuildingTanksFactory: {
+		Type:        BuildingTanksFactory,
+		Name:        "Tanks Factory",
 		Description: "Produces combat vehicles",
 		Width:       128,
 		Height:      64,
 		Color:       color.RGBA{120, 100, 80, 255},
 		Cost: map[resource.Type]float64{
-			resource.Credits: 600,
+			resource.Metal: 600,
 		},
 		EnergyConsumption: 15,
 		BuildTime:         15,
 		VisionRange:       150,
 		Health:            500,
 		IsFactory:         true,
-		ProducesUnits:     []UnitType{UnitTypeTank, UnitTypeScout},
-		SpritePath:        "buildings/factory.png",
-		SpriteWidth:       128,
-		SpriteHeight:      64,
-		AnimationSpeed:    4,
+		ProducesUnits: []UnitType{
+			UnitTypeLightTank,
+			UnitTypeTank,
+			UnitTypeHeavyTank,
+			UnitTypeArtillery,
+			UnitTypeRocketTank,
+			UnitTypeFlameTank,
+			UnitTypeAAVehicle,
+			UnitTypeScout,
+		},
+		SpritePath:     "buildings/factory.png",
+		SpriteWidth:    128,
+		SpriteHeight:   64,
+		AnimationSpeed: 4,
 	},
 	BuildingHoverBay: {
 		Type:        BuildingHoverBay,
@@ -526,7 +723,7 @@ var BuildingDefs = map[BuildingType]*BuildingDef{
 		Size:        60,
 		Color:       color.RGBA{80, 100, 140, 255},
 		Cost: map[resource.Type]float64{
-			resource.Credits: 900,
+			resource.Metal: 900,
 		},
 		EnergyConsumption: 15,
 		BuildTime:         18,
@@ -542,7 +739,7 @@ var BuildingDefs = map[BuildingType]*BuildingDef{
 		Size:        30,
 		Color:       color.RGBA{100, 200, 200, 255},
 		Cost: map[resource.Type]float64{
-			resource.Credits: 600,
+			resource.Metal: 600,
 		},
 		EnergyConsumption: 10,
 		BuildTime:         10,
@@ -556,7 +753,7 @@ var BuildingDefs = map[BuildingType]*BuildingDef{
 		Size:        20,
 		Color:       color.RGBA{80, 80, 90, 255},
 		Cost: map[resource.Type]float64{
-			resource.Credits: 50,
+			resource.Metal: 50,
 		},
 		BuildTime:   2,
 		VisionRange: 50,
@@ -569,7 +766,7 @@ var BuildingDefs = map[BuildingType]*BuildingDef{
 		Size:        25,
 		Color:       color.RGBA{150, 100, 80, 255},
 		Cost: map[resource.Type]float64{
-			resource.Credits: 350,
+			resource.Metal: 350,
 		},
 		EnergyConsumption: 5,
 		BuildTime:         8,
@@ -589,7 +786,7 @@ var BuildingDefs = map[BuildingType]*BuildingDef{
 		Size:        30,
 		Color:       color.RGBA{180, 80, 80, 255},
 		Cost: map[resource.Type]float64{
-			resource.Credits: 450,
+			resource.Metal: 450,
 		},
 		EnergyConsumption: 8,
 		BuildTime:         10,
@@ -612,24 +809,33 @@ var BuildingDefs = map[BuildingType]*BuildingDef{
 		Size:        60,
 		Color:       color.RGBA{100, 100, 100, 255},
 		Cost: map[resource.Type]float64{
-			resource.Credits: 200,
-			resource.Energy:  100,
+			resource.Metal:  200,
+			resource.Energy: 100,
 		},
 		EnergyConsumption: 5,
 		BuildTime:         10,
 		VisionRange:       150,
 		Health:            500,
 		IsFactory:         true,
-		ProducesUnits:     []UnitType{UnitTypeTank, UnitTypeScout},
+		ProducesUnits: []UnitType{
+			UnitTypeLightTank,
+			UnitTypeTank,
+			UnitTypeHeavyTank,
+			UnitTypeArtillery,
+			UnitTypeRocketTank,
+			UnitTypeFlameTank,
+			UnitTypeAAVehicle,
+			UnitTypeScout,
+		},
 	},
 	BuildingSolarPanel: {
-		Type:             BuildingSolarPanel,
-		Name:             "Solar Panel",
-		Description:      "Generates energy",
-		Size:             40,
-		Color:            color.RGBA{50, 100, 200, 255},
+		Type:        BuildingSolarPanel,
+		Name:        "Solar Panel",
+		Description: "Generates energy",
+		Size:        40,
+		Color:       color.RGBA{50, 100, 200, 255},
 		Cost: map[resource.Type]float64{
-			resource.Credits: 50,
+			resource.Metal: 50,
 		},
 		EnergyProduction: 10,
 		BuildTime:        5,
@@ -638,15 +844,15 @@ var BuildingDefs = map[BuildingType]*BuildingDef{
 	},
 	BuildingMetalExtractor: {
 		Type:        BuildingMetalExtractor,
-		Name:        "Credit Extractor",
-		Description: "Extracts credits from deposits",
+		Name:        "Metal Extractor",
+		Description: "Extracts metal from deposits",
 		Size:        35,
 		Color:       color.RGBA{150, 150, 170, 255},
 		Cost: map[resource.Type]float64{
-			resource.Credits: 50,
-			resource.Energy:  25,
+			resource.Metal:  50,
+			resource.Energy: 25,
 		},
-		CreditsProduction: 3,
+		MetalProduction:   3,
 		EnergyConsumption: 2,
 		BuildTime:         5,
 		VisionRange:       100,
@@ -655,17 +861,17 @@ var BuildingDefs = map[BuildingType]*BuildingDef{
 	},
 	BuildingMetalStorage: {
 		Type:        BuildingMetalStorage,
-		Name:        "Credit Storage",
-		Description: "Stores 500 credits",
+		Name:        "Metal Storage",
+		Description: "Stores 500 metal",
 		Size:        30,
 		Color:       color.RGBA{120, 120, 140, 255},
 		Cost: map[resource.Type]float64{
-			resource.Credits: 75,
+			resource.Metal: 75,
 		},
-		CreditsStorage: 500,
-		BuildTime:      4,
-		VisionRange:    80,
-		Health:         300,
+		MetalStorage: 500,
+		BuildTime:    4,
+		VisionRange:  80,
+		Health:       300,
 	},
 	BuildingEnergyStorage: {
 		Type:        BuildingEnergyStorage,
@@ -674,7 +880,7 @@ var BuildingDefs = map[BuildingType]*BuildingDef{
 		Size:        30,
 		Color:       color.RGBA{80, 120, 180, 255},
 		Cost: map[resource.Type]float64{
-			resource.Credits: 75,
+			resource.Metal: 75,
 		},
 		EnergyStorage: 500,
 		BuildTime:     4,
@@ -683,18 +889,18 @@ var BuildingDefs = map[BuildingType]*BuildingDef{
 	},
 	BuildingMetalStorageLarge: {
 		Type:        BuildingMetalStorageLarge,
-		Name:        "Large Credit Storage",
-		Description: "Stores 2000 credits",
+		Name:        "Large Metal Storage",
+		Description: "Stores 2000 metal",
 		Size:        50,
 		Color:       color.RGBA{100, 100, 120, 255},
 		Cost: map[resource.Type]float64{
-			resource.Credits: 200,
-			resource.Energy:  50,
+			resource.Metal:  200,
+			resource.Energy: 50,
 		},
-		CreditsStorage: 2000,
-		BuildTime:      8,
-		VisionRange:    100,
-		Health:         600,
+		MetalStorage: 2000,
+		BuildTime:    8,
+		VisionRange:  100,
+		Health:       600,
 	},
 	BuildingEnergyStorageLarge: {
 		Type:        BuildingEnergyStorageLarge,
@@ -703,8 +909,8 @@ var BuildingDefs = map[BuildingType]*BuildingDef{
 		Size:        50,
 		Color:       color.RGBA{60, 100, 160, 255},
 		Cost: map[resource.Type]float64{
-			resource.Credits: 200,
-			resource.Energy:  50,
+			resource.Metal:  200,
+			resource.Energy: 50,
 		},
 		EnergyStorage: 3000,
 		BuildTime:     8,
@@ -718,8 +924,8 @@ var BuildingDefs = map[BuildingType]*BuildingDef{
 		Size:        70,
 		Color:       color.RGBA{120, 90, 140, 255},
 		Cost: map[resource.Type]float64{
-			resource.Credits: 300,
-			resource.Energy:  150,
+			resource.Metal:  300,
+			resource.Energy: 150,
 		},
 		EnergyConsumption: 8,
 		BuildTime:         15,
@@ -735,8 +941,8 @@ var BuildingDefs = map[BuildingType]*BuildingDef{
 		Size:        30,
 		Color:       color.RGBA{200, 50, 50, 255},
 		Cost: map[resource.Type]float64{
-			resource.Credits: 150,
-			resource.Energy:  100,
+			resource.Metal:  150,
+			resource.Energy: 100,
 		},
 		BuildTime:     6,
 		VisionRange:   300,
@@ -777,6 +983,20 @@ func GetBuildableDefs(unitType UnitType) []*BuildingDef {
 	result := make([]*BuildingDef, 0, len(buildableTypes))
 	for _, buildingType := range buildableTypes {
 		if buildingDef := BuildingDefs[buildingType]; buildingDef != nil {
+			result = append(result, buildingDef)
+		}
+	}
+	return result
+}
+
+func GetBuildableStructures(buildingType BuildingType) []*BuildingDef {
+	def := BuildingDefs[buildingType]
+	if def == nil || len(def.BuildableStructures) == 0 {
+		return nil
+	}
+	result := make([]*BuildingDef, 0, len(def.BuildableStructures))
+	for _, bt := range def.BuildableStructures {
+		if buildingDef := BuildingDefs[bt]; buildingDef != nil {
 			result = append(result, buildingDef)
 		}
 	}

@@ -1,0 +1,126 @@
+name: Skirmish Valley
+description: A balanced 2-player skirmish map with water features and metal deposits
+author: System
+version: "1.0"
+
+size:
+  width: 256 # Width in tiles
+  height: 144 # Height in tiles
+  tile_size: 25 # Pixels per tile
+
+# Terrain features (everything else is grass by default)
+terrain:
+  # Metal deposits (for resource extraction)
+  metal:
+    # Player base area (top-left)
+    - x: 16
+      y: 8
+    - x: 18
+      y: 8
+    - x: 20
+      y: 10
+
+    # Enemy base area (bottom-right)
+    - x: 235
+      y: 130
+    - x: 237
+      y: 130
+    - x: 233
+      y: 128
+
+    # Contested middle area - valuable resources worth fighting for
+    - x: 120
+      y: 70
+    - x: 122
+      y: 70
+    - x: 124
+      y: 72
+    - x: 126
+      y: 72
+    - x: 128
+      y: 70
+    - x: 130
+      y: 70
+
+    # North contested zone
+    - x: 100
+      y: 30
+    - x: 102
+      y: 30
+    - x: 150
+      y: 25
+    - x: 152
+      y: 25
+
+    # South contested zone
+    - x: 100
+      y: 110
+    - x: 102
+      y: 110
+    - x: 150
+      y: 115
+    - x: 152
+      y: 115
+
+    # East expansion
+    - x: 200
+      y: 50
+    - x: 202
+      y: 50
+
+    # West expansion
+    - x: 50
+      y: 90
+    - x: 52
+      y: 90
+
+# Factions define teams and their starting positions
+factions:
+  # Player faction
+  - id: player
+    team: blue
+    type: player
+    resources:
+      metal: 1500
+      energy: 150
+    buildings:
+      - type: CommandNexus
+        x: 300
+        y: 200
+      - type: SolarArray
+        x: 400
+        y: 200
+      - type: TanksFactory
+        x: 300
+        y: 320
+    units:
+      - type: Tank
+        x: 350
+        y: 400
+        count: 2
+      - type: Scout
+        x: 450
+        y: 350
+
+  # Enemy AI faction
+  - id: enemy_1
+    team: red
+    type: ai
+    buildings:
+      - type: CommandNexus
+        x: 3500
+        y: 2700
+      - type: HoverBay
+        x: 3620
+        y: 2700
+      - type: SolarArray
+        x: 3380
+        y: 2700
+    units:
+      - type: Tank
+        x: 3450
+        y: 2840
+        count: 2
+      - type: Scout
+        x: 3550
+        y: 2880

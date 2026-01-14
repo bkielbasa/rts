@@ -2,28 +2,29 @@ package ui
 
 import (
 	"fmt"
+	"image/color"
+	"strings"
+
 	"github.com/bklimczak/tanks/engine/entity"
 	emath "github.com/bklimczak/tanks/engine/math"
 	"github.com/bklimczak/tanks/engine/resource"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
-	"image/color"
-	"strings"
 )
 
 const (
-	tooltipPadding = 8
+	tooltipPadding  = 8
 	tooltipMaxWidth = 220
-	lineHeight = 14
+	lineHeight      = 14
 )
 
 type Tooltip struct {
-	visible     bool
-	buildingDef *entity.BuildingDef
-	unitDef     *entity.UnitDef
-	position    emath.Vec2
-	screenWidth float64
+	visible      bool
+	buildingDef  *entity.BuildingDef
+	unitDef      *entity.UnitDef
+	position     emath.Vec2
+	screenWidth  float64
 	screenHeight float64
 }
 
@@ -116,33 +117,24 @@ func (t *Tooltip) getBuildingLines() []string {
 	if def.EnergyProduction > 0 {
 		lines = append(lines, fmt.Sprintf("Produces: +%.0f Energy/s", def.EnergyProduction))
 	}
-	if def.CreditsProduction > 0 {
-		lines = append(lines, fmt.Sprintf("Produces: +%.0f Credits/s", def.CreditsProduction))
-	}
-	if def.AlloysProduction > 0 {
-		lines = append(lines, fmt.Sprintf("Produces: +%.0f Alloys/s", def.AlloysProduction))
+	if def.MetalProduction > 0 {
+		lines = append(lines, fmt.Sprintf("Produces: +%.0f Metal/s", def.MetalProduction))
 	}
 
 	if def.EnergyConsumption > 0 {
 		lines = append(lines, fmt.Sprintf("Consumes: -%.0f Energy/s", def.EnergyConsumption))
 	}
-	if def.CreditsConsumption > 0 {
-		lines = append(lines, fmt.Sprintf("Consumes: -%.0f Credits/s", def.CreditsConsumption))
-	}
-	if def.AlloysConsumption > 0 {
-		lines = append(lines, fmt.Sprintf("Consumes: -%.0f Alloys/s", def.AlloysConsumption))
+	if def.MetalConsumption > 0 {
+		lines = append(lines, fmt.Sprintf("Consumes: -%.0f Metal/s", def.MetalConsumption))
 	}
 
-	if def.EnergyStorage > 0 || def.CreditsStorage > 0 || def.AlloysStorage > 0 {
+	if def.EnergyStorage > 0 || def.MetalStorage > 0 {
 		storageStr := "Storage:"
-		if def.CreditsStorage > 0 {
-			storageStr += fmt.Sprintf(" +%.0f C", def.CreditsStorage)
+		if def.MetalStorage > 0 {
+			storageStr += fmt.Sprintf(" +%.0f M", def.MetalStorage)
 		}
 		if def.EnergyStorage > 0 {
 			storageStr += fmt.Sprintf(" +%.0f E", def.EnergyStorage)
-		}
-		if def.AlloysStorage > 0 {
-			storageStr += fmt.Sprintf(" +%.0f A", def.AlloysStorage)
 		}
 		lines = append(lines, storageStr)
 	}
@@ -161,14 +153,11 @@ func (t *Tooltip) getBuildingLines() []string {
 
 	lines = append(lines, "")
 	costStr := "Cost:"
-	if c, ok := def.Cost[resource.Credits]; ok && c > 0 {
-		costStr += fmt.Sprintf(" %.0fC", c)
+	if m, ok := def.Cost[resource.Metal]; ok && m > 0 {
+		costStr += fmt.Sprintf(" %.0fM", m)
 	}
 	if e, ok := def.Cost[resource.Energy]; ok && e > 0 {
 		costStr += fmt.Sprintf(" %.0fE", e)
-	}
-	if a, ok := def.Cost[resource.Alloys]; ok && a > 0 {
-		costStr += fmt.Sprintf(" %.0fA", a)
 	}
 	lines = append(lines, costStr)
 	lines = append(lines, fmt.Sprintf("Build Time: %.0fs", def.BuildTime))
@@ -200,14 +189,11 @@ func (t *Tooltip) getUnitLines() []string {
 
 	lines = append(lines, "")
 	costStr := "Cost:"
-	if c, ok := def.Cost[resource.Credits]; ok && c > 0 {
-		costStr += fmt.Sprintf(" %.0fC", c)
+	if m, ok := def.Cost[resource.Metal]; ok && m > 0 {
+		costStr += fmt.Sprintf(" %.0fM", m)
 	}
 	if e, ok := def.Cost[resource.Energy]; ok && e > 0 {
 		costStr += fmt.Sprintf(" %.0fE", e)
-	}
-	if a, ok := def.Cost[resource.Alloys]; ok && a > 0 {
-		costStr += fmt.Sprintf(" %.0fA", a)
 	}
 	lines = append(lines, costStr)
 	lines = append(lines, fmt.Sprintf("Build Time: %.0fs", def.BuildTime))

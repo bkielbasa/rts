@@ -38,6 +38,9 @@ func (m *Minimap) SetPosition(x, y float64) {
 func (m *Minimap) SetWorldSize(width, height float64) {
 	m.worldSize = emath.Vec2{X: width, Y: height}
 }
+func (m *Minimap) WorldSize() emath.Vec2 {
+	return m.worldSize
+}
 func (m *Minimap) Bounds() emath.Rect {
 	return m.bounds
 }
@@ -105,12 +108,19 @@ func (m *Minimap) Draw(screen *ebiten.Image, cam *camera.Camera, terrainMap *ter
 			false,
 		)
 	}
-	viewportPos := m.worldToMinimap(cam.Position)
-	viewportSize := m.worldSizeToMinimap(cam.ViewportSize)
+	viewportBounds := cam.GetViewportBounds()
+	viewportPos := m.worldToMinimap(viewportBounds.Pos)
+	viewportSize := m.worldSizeToMinimap(viewportBounds.Size)
+
 	vpX := viewportPos.X
 	vpY := viewportPos.Y
 	vpW := viewportSize.X
 	vpH := viewportSize.Y
+
+	// Debug: draw a red dot at minimap origin (should be top-left of minimap)
+	vector.DrawFilledCircle(screen, float32(m.bounds.Pos.X), float32(m.bounds.Pos.Y), 3, color.RGBA{255, 0, 0, 255}, false)
+	// Debug: draw a blue dot at calculated viewport position
+	vector.DrawFilledCircle(screen, float32(vpX), float32(vpY), 3, color.RGBA{0, 0, 255, 255}, false)
 	if vpX < m.bounds.Pos.X {
 		vpW -= m.bounds.Pos.X - vpX
 		vpX = m.bounds.Pos.X
@@ -125,6 +135,8 @@ func (m *Minimap) Draw(screen *ebiten.Image, cam *camera.Camera, terrainMap *ter
 	if vpY+vpH > m.bounds.Pos.Y+m.bounds.Size.Y {
 		vpH = m.bounds.Pos.Y + m.bounds.Size.Y - vpY
 	}
+	// Debug: draw a green dot at final vpX,vpY after clamping
+	vector.DrawFilledCircle(screen, float32(vpX), float32(vpY), 3, color.RGBA{0, 255, 0, 255}, false)
 	if vpW > 0 && vpH > 0 {
 		vector.StrokeRect(
 			screen,

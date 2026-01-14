@@ -2,18 +2,18 @@ package ui
 
 import (
 	"fmt"
+	"image/color"
+
 	emath "github.com/bklimczak/tanks/engine/math"
 	"github.com/bklimczak/tanks/engine/resource"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
-	"image/color"
 )
 
 var (
-	CreditsColor = color.RGBA{220, 180, 80, 255}
-	EnergyColor  = color.RGBA{80, 180, 255, 255}
-	AlloysColor  = color.RGBA{180, 100, 220, 255}
+	MetalColor  = color.RGBA{180, 180, 200, 255}
+	EnergyColor = color.RGBA{80, 180, 255, 255}
 )
 
 type ResourceDisplay struct {
@@ -32,18 +32,14 @@ func NewResourceDisplay(t resource.Type, x, y, width float64) *ResourceDisplay {
 		barHeight:    8,
 	}
 	switch t {
-	case resource.Credits:
-		rd.label = "CREDITS"
-		rd.symbol = "Ȼ"
-		rd.barColor = CreditsColor
+	case resource.Metal:
+		rd.label = "METAL"
+		rd.symbol = "M"
+		rd.barColor = MetalColor
 	case resource.Energy:
 		rd.label = "ENERGY"
 		rd.symbol = "⚡"
 		rd.barColor = EnergyColor
-	case resource.Alloys:
-		rd.label = "ALLOYS"
-		rd.symbol = "◆"
-		rd.barColor = AlloysColor
 	}
 	return rd
 }
@@ -112,9 +108,8 @@ func NewResourceBar(screenWidth float64) *ResourceBar {
 	startX := 10.0
 	spacing := 15.0
 
-	rb.displays = append(rb.displays, NewResourceDisplay(resource.Credits, startX, 5, displayWidth))
+	rb.displays = append(rb.displays, NewResourceDisplay(resource.Metal, startX, 5, displayWidth))
 	rb.displays = append(rb.displays, NewResourceDisplay(resource.Energy, startX+displayWidth+spacing, 5, displayWidth))
-	rb.displays = append(rb.displays, NewResourceDisplay(resource.Alloys, startX+2*(displayWidth+spacing), 5, displayWidth))
 
 	return rb
 }

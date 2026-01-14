@@ -86,11 +86,11 @@ func (b *Building) UpdateConstruction(dt float64, resources *resource.Manager) b
 	if targetProgress > 1.0 {
 		targetProgress = 1.0
 	}
-	metalCost := b.Def.Cost[resource.Credits]
+	metalCost := b.Def.Cost[resource.Metal]
 	energyCost := b.Def.Cost[resource.Energy]
 	metalNeeded := targetProgress*metalCost - b.MetalSpent
 	energyNeeded := targetProgress*energyCost - b.EnergySpent
-	metalAvailable := resources.Get(resource.Credits).Current
+	metalAvailable := resources.Get(resource.Metal).Current
 	energyAvailable := resources.Get(resource.Energy).Current
 	metalToSpend := metalNeeded
 	if metalToSpend > metalAvailable {
@@ -122,7 +122,7 @@ func (b *Building) UpdateConstruction(dt float64, resources *resource.Manager) b
 	if metalCost > 0 {
 		metalToSpend = actualProgress*metalCost - b.MetalSpent
 		if metalToSpend > 0 {
-			resources.Get(resource.Credits).SpendWithTracking(metalToSpend)
+			resources.Get(resource.Metal).SpendWithTracking(metalToSpend)
 			b.MetalSpent += metalToSpend
 		}
 	}
@@ -194,7 +194,7 @@ func (b *Building) RemoveFromQueue(unitType UnitType, resources *resource.Manage
 		energyRefund = b.ProductionEnergySpent
 		if resources != nil {
 			if metalRefund > 0 {
-				resources.Get(resource.Credits).Add(metalRefund)
+				resources.Get(resource.Metal).Add(metalRefund)
 			}
 			if energyRefund > 0 {
 				resources.Get(resource.Energy).Add(energyRefund)
@@ -219,11 +219,11 @@ func (b *Building) UpdateProduction(dt float64, resources *resource.Manager) *Un
 	if targetProgress > 1.0 {
 		targetProgress = 1.0
 	}
-	metalCost := b.CurrentProduction.Cost[resource.Credits]
+	metalCost := b.CurrentProduction.Cost[resource.Metal]
 	energyCost := b.CurrentProduction.Cost[resource.Energy]
 	metalNeeded := targetProgress*metalCost - b.ProductionMetalSpent
 	energyNeeded := targetProgress*energyCost - b.ProductionEnergySpent
-	metalAvailable := resources.Get(resource.Credits).Current
+	metalAvailable := resources.Get(resource.Metal).Current
 	energyAvailable := resources.Get(resource.Energy).Current
 	metalToSpend := metalNeeded
 	if metalToSpend > metalAvailable {
@@ -255,7 +255,7 @@ func (b *Building) UpdateProduction(dt float64, resources *resource.Manager) *Un
 	if metalCost > 0 {
 		metalToSpend = actualProgress*metalCost - b.ProductionMetalSpent
 		if metalToSpend > 0 {
-			resources.Get(resource.Credits).SpendWithTracking(metalToSpend)
+			resources.Get(resource.Metal).SpendWithTracking(metalToSpend)
 			b.ProductionMetalSpent += metalToSpend
 		}
 	}
