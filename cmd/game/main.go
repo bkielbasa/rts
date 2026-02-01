@@ -542,23 +542,30 @@ func (g *Game) handleMenuSelection(option ui.MenuOption) error {
 
 func (g *Game) enterMultiplayerLobby() {
 	g.state = StateMultiplayerLobby
-	g.lobbyBrowser.SetConnecting(true)
-	g.lobbyBrowser.ClearError()
+	g.lobbyBrowser.Reset()
 
 	// Create network client if not exists
 	if g.networkClient == nil {
 		g.networkClient = network.NewClient("Player")
 	}
+}
+
+func (g *Game) connectToServer() {
+	g.lobbyBrowser.SetConnecting(true)
+	g.lobbyBrowser.ClearError()
+
+	serverAddr := g.lobbyBrowser.GetServerAddress()
 
 	// Connect to server in background
 	go func() {
-		err := g.networkClient.Connect("localhost:8080")
+		err := g.networkClient.Connect(serverAddr)
 		if err != nil {
 			g.lobbyBrowser.SetError(err.Error())
 			g.lobbyBrowser.SetConnecting(false)
 			return
 		}
 		g.lobbyBrowser.SetConnecting(false)
+		g.lobbyBrowser.SetConnected(true)
 		g.networkClient.RequestLobbyList()
 	}()
 }
@@ -567,11 +574,35 @@ func (g *Game) updateMultiplayerLobby(inputState input.State) error {
 	g.lobbyBrowser.UpdateSize(float64(g.screenWidth), float64(g.screenHeight))
 
 	if inputState.EscapePressed {
+		if g.lobbyBrowser.IsAddressInputMode() {
+			// In address input mode, ESC goes back to main menu
+			g.state = StateMenu
+			return nil
+		}
 		if g.networkClient != nil {
 			g.networkClient.Disconnect()
 		}
 		g.state = StateMenu
 		return nil
+	}
+
+	// Handle text input for server address
+	if g.lobbyBrowser.IsAddressInputMode() {
+		// Handle typed characters
+		for _, char := range ebiten.AppendInputChars(nil) {
+			g.lobbyBrowser.HandleTextInput(char)
+		}
+
+		// Handle backspace
+		if inputState.BackspacePressed {
+			g.lobbyBrowser.HandleBackspace()
+		}
+
+		// Handle Enter to connect
+		if inputState.EnterPressed {
+			g.connectToServer()
+			return nil
+		}
 	}
 
 	// Update lobby list from network client
@@ -616,10 +647,16 @@ func (g *Game) updateMultiplayerLobby(inputState input.State) error {
 func (g *Game) handleLobbyBrowserAction(action ui.LobbyBrowserAction) error {
 	switch action {
 	case ui.LobbyActionBack:
+		if g.lobbyBrowser.IsAddressInputMode() {
+			g.state = StateMenu
+			return nil
+		}
 		if g.networkClient != nil {
 			g.networkClient.Disconnect()
 		}
-		g.state = StateMenu
+		g.lobbyBrowser.Reset()
+	case ui.LobbyActionConnect:
+		g.connectToServer()
 	case ui.LobbyActionRefresh:
 		if g.networkClient != nil && g.networkClient.IsConnected() {
 			g.networkClient.RequestLobbyList()
@@ -2443,12 +2480,32 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 	}
 	return outsideWidth, outsideHeight
 }
+
+func (g *Game) Cleanup() {
+	log.Println("Cleaning up game resources...")
+
+	// Disconnect from network if connected
+	if g.networkClient != nil {
+		if g.networkClient.InLobby() {
+			g.networkClient.LeaveLobby()
+		}
+		g.networkClient.Disconnect()
+		g.networkClient = nil
+	}
+
+	log.Println("Game cleanup complete")
+}
+
 func main() {
 	ebiten.SetWindowSize(1280, 720)
 	ebiten.SetWindowTitle("Tanks RTS")
 	ebiten.SetFullscreen(true)
 	ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)
-	if err := ebiten.RunGame(NewGame()); err != nil && err != ebiten.Termination {
+
+	game := NewGame()
+	defer game.Cleanup()
+
+	if err := ebiten.RunGame(game); err != nil && err != ebiten.Termination {
 		log.Fatal(err)
 	}
 }

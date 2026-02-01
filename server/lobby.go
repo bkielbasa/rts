@@ -408,3 +408,15 @@ func (m *LobbyManager) CleanupFinished() {
 		}
 	}
 }
+
+// StopAll stops all active lobbies and games
+func (m *LobbyManager) StopAll() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	for _, lobby := range m.lobbies {
+		lobby.Stop()
+	}
+	m.lobbies = make(map[string]*Lobby)
+	m.playerMap = make(map[string]string)
+}

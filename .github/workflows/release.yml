@@ -21,19 +21,21 @@ jobs:
         with:
           go-version: "1.21"
 
-      - name: Build binary
+      - name: Build binaries
         env:
           GOOS: windows
           GOARCH: amd64
           CGO_ENABLED: 0
         run: |
           go build -ldflags "-s -w" -o tanks.exe ./cmd/game
+          go build -ldflags "-s -w" -o tanks-server.exe ./cmd/server
 
       - name: Create distribution package
         run: |
           DIST_NAME="tanks-windows-amd64-${{ github.ref_name }}"
           mkdir -p "$DIST_NAME"
           cp tanks.exe "$DIST_NAME/"
+          cp tanks-server.exe "$DIST_NAME/"
           cp -r assets "$DIST_NAME/"
           cp -r maps "$DIST_NAME/"
           cp -r campaigns "$DIST_NAME/"
@@ -64,19 +66,21 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libgl1-mesa-dev xorg-dev libasound2-dev
 
-      - name: Build binary
+      - name: Build binaries
         env:
           GOOS: linux
           GOARCH: amd64
           CGO_ENABLED: 1
         run: |
           go build -ldflags "-s -w" -o tanks ./cmd/game
+          go build -ldflags "-s -w" -o tanks-server ./cmd/server
 
       - name: Create distribution package
         run: |
           DIST_NAME="tanks-linux-amd64-${{ github.ref_name }}"
           mkdir -p "$DIST_NAME"
           cp tanks "$DIST_NAME/"
+          cp tanks-server "$DIST_NAME/"
           cp -r assets "$DIST_NAME/"
           cp -r maps "$DIST_NAME/"
           cp -r campaigns "$DIST_NAME/"
@@ -107,19 +111,21 @@ jobs:
         with:
           go-version: "1.21"
 
-      - name: Build binary
+      - name: Build binaries
         env:
           GOOS: darwin
           GOARCH: ${{ matrix.arch }}
           CGO_ENABLED: 1
         run: |
           go build -ldflags "-s -w" -o tanks ./cmd/game
+          go build -ldflags "-s -w" -o tanks-server ./cmd/server
 
       - name: Create distribution package
         run: |
           DIST_NAME="tanks-darwin-${{ matrix.arch }}-${{ github.ref_name }}"
           mkdir -p "$DIST_NAME"
           cp tanks "$DIST_NAME/"
+          cp tanks-server "$DIST_NAME/"
           cp -r assets "$DIST_NAME/"
           cp -r maps "$DIST_NAME/"
           cp -r campaigns "$DIST_NAME/"

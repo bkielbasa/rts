@@ -23,6 +23,7 @@ type State struct {
 	MenuUp           bool // Up arrow only (not W, for menu)
 	MenuDown         bool // Down arrow only (not S, for menu)
 	EnterPressed     bool // Enter/Return key
+	BackspacePressed bool // Backspace key for text input
 	IsDragging       bool
 	DragStart        emath.Vec2
 	DragEnd          emath.Vec2
@@ -57,6 +58,7 @@ func (m *Manager) Update() {
 	m.state.MenuUp = inpututil.IsKeyJustPressed(ebiten.KeyUp)
 	m.state.MenuDown = inpututil.IsKeyJustPressed(ebiten.KeyDown)
 	m.state.EnterPressed = inpututil.IsKeyJustPressed(ebiten.KeyEnter)
+	m.state.BackspacePressed = inpututil.IsKeyJustPressed(ebiten.KeyBackspace)
 	// Mouse wheel for zoom
 	_, wheelY := ebiten.Wheel()
 	m.state.MouseWheelY = wheelY

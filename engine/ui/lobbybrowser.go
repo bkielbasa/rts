@@ -26,30 +26,71 @@ const (
 	LobbyActionCreate
 	LobbyActionRefresh
 	LobbyActionBack
+	LobbyActionConnect
 )
 
 type LobbyBrowser struct {
-	screenWidth   float64
-	screenHeight  float64
-	lobbies       []LobbyInfo
-	selectedIndex int
-	scrollOffset  int
-	maxVisible    int
-	connecting    bool
-	errorMessage  string
-	serverAddress string
+	screenWidth      float64
+	screenHeight     float64
+	lobbies          []LobbyInfo
+	selectedIndex    int
+	scrollOffset     int
+	maxVisible       int
+	connecting       bool
+	connected        bool
+	errorMessage     string
+	serverAddress    string
+	addressInputMode bool
 }
 
 func NewLobbyBrowser() *LobbyBrowser {
 	return &LobbyBrowser{
-		screenWidth:   1280,
-		screenHeight:  720,
-		lobbies:       nil,
-		selectedIndex: -1,
-		scrollOffset:  0,
-		maxVisible:    8,
-		serverAddress: "localhost:8080",
+		screenWidth:      1280,
+		screenHeight:     720,
+		lobbies:          nil,
+		selectedIndex:    -1,
+		scrollOffset:     0,
+		maxVisible:       8,
+		serverAddress:    "localhost:8080",
+		addressInputMode: true,
+		connected:        false,
 	}
+}
+
+func (lb *LobbyBrowser) GetServerAddress() string {
+	return lb.serverAddress
+}
+
+func (lb *LobbyBrowser) SetConnected(connected bool) {
+	lb.connected = connected
+	if connected {
+		lb.addressInputMode = false
+	}
+}
+
+func (lb *LobbyBrowser) IsAddressInputMode() bool {
+	return lb.addressInputMode
+}
+
+func (lb *LobbyBrowser) HandleTextInput(char rune) {
+	if lb.addressInputMode {
+		lb.serverAddress += string(char)
+	}
+}
+
+func (lb *LobbyBrowser) HandleBackspace() {
+	if lb.addressInputMode && len(lb.serverAddress) > 0 {
+		lb.serverAddress = lb.serverAddress[:len(lb.serverAddress)-1]
+	}
+}
+
+func (lb *LobbyBrowser) Reset() {
+	lb.connected = false
+	lb.connecting = false
+	lb.addressInputMode = true
+	lb.lobbies = nil
+	lb.selectedIndex = -1
+	lb.errorMessage = ""
 }
 
 func (lb *LobbyBrowser) UpdateSize(width, height float64) {
@@ -108,8 +149,30 @@ func (lb *LobbyBrowser) HandleClick(pos emath.Vec2) LobbyBrowserAction {
 	panelX := (lb.screenWidth - panelWidth) / 2
 	panelY := (lb.screenHeight - panelHeight) / 2
 
+	buttonY := panelY + panelHeight - 50
+	buttonWidth := 100.0
+	buttonHeight := 35.0
+	buttonSpacing := 20.0
+
+	// Address input mode - show connect screen
+	if lb.addressInputMode {
+		// Back button
+		backBounds := emath.NewRect(panelX+20, buttonY, buttonWidth, buttonHeight)
+		if backBounds.Contains(pos) {
+			return LobbyActionBack
+		}
+
+		// Connect button
+		connectBounds := emath.NewRect(panelX+panelWidth-buttonWidth-20, buttonY, buttonWidth, buttonHeight)
+		if connectBounds.Contains(pos) {
+			return LobbyActionConnect
+		}
+
+		return LobbyActionNone
+	}
+
 	// Check lobby list clicks
-	listY := panelY + 60
+	listY := panelY + 80
 	itemHeight := 40.0
 	for i := 0; i < lb.maxVisible && lb.scrollOffset+i < len(lb.lobbies); i++ {
 		itemY := listY + float64(i)*itemHeight
@@ -119,12 +182,6 @@ func (lb *LobbyBrowser) HandleClick(pos emath.Vec2) LobbyBrowserAction {
 			return LobbyActionNone
 		}
 	}
-
-	// Check button clicks
-	buttonY := panelY + panelHeight - 50
-	buttonWidth := 100.0
-	buttonHeight := 35.0
-	buttonSpacing := 20.0
 
 	// Back button
 	backBounds := emath.NewRect(panelX+20, buttonY, buttonWidth, buttonHeight)
@@ -186,17 +243,78 @@ func (lb *LobbyBrowser) Draw(screen *ebiten.Image) {
 	vector.FillRect(screen, float32(panelX), float32(panelY), float32(panelWidth), float32(panelHeight), panelColor, false)
 	vector.StrokeRect(screen, float32(panelX), float32(panelY), float32(panelWidth), float32(panelHeight), 2, borderColor, false)
 
+	buttonY := panelY + panelHeight - 50
+	buttonWidth := 100.0
+	buttonHeight := 35.0
+	buttonSpacing := 20.0
+	buttonColor := color.RGBA{60, 80, 100, 255}
+	buttonHoverColor := color.RGBA{80, 120, 140, 255}
+
+	// Address input mode - show connect screen
+	if lb.addressInputMode {
+		title := "CONNECT TO SERVER"
+		titleX := int(panelX) + int(panelWidth)/2 - len(title)*3
+		ebitenutil.DebugPrintAt(screen, title, titleX, int(panelY)+15)
+
+		// Server address label
+		ebitenutil.DebugPrintAt(screen, "Server Address:", int(panelX)+20, int(panelY)+80)
+
+		// Server address input box
+		inputBoxY := panelY + 100
+		inputBoxWidth := panelWidth - 40
+		inputBoxHeight := 30.0
+		inputBoxColor := color.RGBA{30, 35, 40, 255}
+		vector.FillRect(screen, float32(panelX)+20, float32(inputBoxY), float32(inputBoxWidth), float32(inputBoxHeight), inputBoxColor, false)
+		vector.StrokeRect(screen, float32(panelX)+20, float32(inputBoxY), float32(inputBoxWidth), float32(inputBoxHeight), 2, color.RGBA{100, 140, 180, 255}, false)
+
+		// Server address text with cursor
+		addressText := lb.serverAddress + "_"
+		ebitenutil.DebugPrintAt(screen, addressText, int(panelX)+25, int(inputBoxY)+8)
+
+		// Error message
+		if lb.errorMessage != "" {
+			errorText := fmt.Sprintf("Error: %s", lb.errorMessage)
+			ebitenutil.DebugPrintAt(screen, errorText, int(panelX)+20, int(panelY)+160)
+		}
+
+		// Connecting message
+		if lb.connecting {
+			connectingText := "Connecting..."
+			ebitenutil.DebugPrintAt(screen, connectingText, int(panelX)+20, int(panelY)+160)
+		}
+
+		// Instructions
+		ebitenutil.DebugPrintAt(screen, "Type server address and press Connect or Enter", int(panelX)+20, int(panelY)+200)
+
+		// Back button
+		vector.FillRect(screen, float32(panelX)+20, float32(buttonY), float32(buttonWidth), float32(buttonHeight), buttonColor, false)
+		vector.StrokeRect(screen, float32(panelX)+20, float32(buttonY), float32(buttonWidth), float32(buttonHeight), 1, borderColor, false)
+		ebitenutil.DebugPrintAt(screen, "Back", int(panelX)+20+int(buttonWidth)/2-12, int(buttonY)+10)
+
+		// Connect button
+		connectX := panelX + panelWidth - buttonWidth - 20
+		vector.FillRect(screen, float32(connectX), float32(buttonY), float32(buttonWidth), float32(buttonHeight), buttonHoverColor, false)
+		vector.StrokeRect(screen, float32(connectX), float32(buttonY), float32(buttonWidth), float32(buttonHeight), 1, borderColor, false)
+		ebitenutil.DebugPrintAt(screen, "Connect", int(connectX)+int(buttonWidth)/2-21, int(buttonY)+10)
+
+		// Instructions at bottom
+		instructions := "Type address | ENTER: Connect | ESC: Back"
+		instrX := int(lb.screenWidth/2) - len(instructions)*3
+		ebitenutil.DebugPrintAt(screen, instructions, instrX, int(lb.screenHeight)-30)
+		return
+	}
+
 	// Title
 	title := "MULTIPLAYER LOBBY BROWSER"
 	titleX := int(panelX) + int(panelWidth)/2 - len(title)*3
 	ebitenutil.DebugPrintAt(screen, title, titleX, int(panelY)+15)
 
 	// Server address
-	serverText := fmt.Sprintf("Server: %s", lb.serverAddress)
+	serverText := fmt.Sprintf("Server: %s (connected)", lb.serverAddress)
 	ebitenutil.DebugPrintAt(screen, serverText, int(panelX)+20, int(panelY)+40)
 
 	// Lobby list
-	listY := panelY + 60
+	listY := panelY + 80
 	itemHeight := 40.0
 
 	if lb.connecting {
@@ -232,14 +350,6 @@ func (lb *LobbyBrowser) Draw(screen *ebiten.Image) {
 			ebitenutil.DebugPrintAt(screen, lobbyText, int(panelX)+30, int(itemY)+12)
 		}
 	}
-
-	// Buttons
-	buttonY := panelY + panelHeight - 50
-	buttonWidth := 100.0
-	buttonHeight := 35.0
-	buttonSpacing := 20.0
-	buttonColor := color.RGBA{60, 80, 100, 255}
-	buttonHoverColor := color.RGBA{80, 120, 140, 255}
 
 	// Back button
 	vector.FillRect(screen, float32(panelX)+20, float32(buttonY), float32(buttonWidth), float32(buttonHeight), buttonColor, false)

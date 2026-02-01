@@ -1,10 +1,12 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
@@ -22,6 +24,7 @@ var upgrader = websocket.Upgrader{
 type Server struct {
 	lobbyManager *LobbyManager
 	players      map[string]*Player // Connection ID -> Player
+	httpServer   *http.Server
 
 	mu sync.RWMutex
 }
@@ -258,12 +261,51 @@ func (s *Server) HandleLobbies(w http.ResponseWriter, r *http.Request) {
 
 // Start starts the server on the given address
 func (s *Server) Start(addr string) error {
-	http.HandleFunc("/ws", s.HandleWebSocket)
-	http.HandleFunc("/api/lobbies", s.HandleLobbies)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/ws", s.HandleWebSocket)
+	mux.HandleFunc("/api/lobbies", s.HandleLobbies)
+
+	s.httpServer = &http.Server{
+		Addr:    addr,
+		Handler: mux,
+	}
 
 	log.Printf("Server starting on %s", addr)
 	log.Printf("WebSocket endpoint: ws://%s/ws", addr)
 	log.Printf("REST API endpoint: http://%s/api/lobbies", addr)
 
-	return http.ListenAndServe(addr, nil)
+	return s.httpServer.ListenAndServe()
+}
+
+// Shutdown gracefully shuts down the server
+func (s *Server) Shutdown(ctx context.Context) error {
+	log.Println("Server shutting down...")
+
+	// Close all player connections
+	s.mu.Lock()
+	for _, player := range s.players {
+		player.Close()
+	}
+	s.players = make(map[string]*Player)
+	s.mu.Unlock()
+
+	// Stop all lobbies
+	s.lobbyManager.StopAll()
+
+	// Shutdown HTTP server
+	if s.httpServer != nil {
+		if err := s.httpServer.Shutdown(ctx); err != nil {
+			return err
+		}
+	}
+
+	log.Println("Server shutdown complete")
+	return nil
+}
+
+// GracefulShutdown performs a graceful shutdown with a timeout
+func (s *Server) GracefulShutdown(timeout time.Duration) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	return s.Shutdown(ctx)
 }
